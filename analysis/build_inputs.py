@@ -50,6 +50,7 @@ COPIES = {
     'q2count_in/': 'coded/coded_q2_[ce][ov][ua]*_cb3.3.jsonl',
     'q2x/': 'coded/coded_q2x*_cb3.3.jsonl',
     'q2x/results_q2x.jsonl': 'raw/results_q2x.jsonl',
+    'q12/': 'coded/{coded_q1_*-*-*_by_*[a-z],coded_q2_q1_*-*-*_by_*[a-z],coded_q2_q2_consistency_*-*-*_by_*[a-z]}.jsonl',
 }
 # 生成スクリプトが import するモジュールと、入力として読む確定記録・定義
 LINKS = ['fjf_extract.py', 'fjf_api.py', 'fjf_scenario.py', 'scenario_rescue.yaml',

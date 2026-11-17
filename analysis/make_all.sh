@@ -1,5 +1,7 @@
 #!/bin/sh
 # data/ から結果文書をすべて作り直す。リポジトリのルートで実行する。
+# q1・q2 の確定記録（RESULTS_q1.md / RESULTS_q2.md）は歴史的版として本文を固定している。
+# 他の文書が使うその表は analysis/q12_tables.py が採点データから計算し、確定記録と照合する。
 #   sh analysis/make_all.sh            # results/ を上書きする
 #   sh analysis/make_all.sh --check    # results/ は触らず、作り直した版との差分だけ表示する
 set -e

@@ -43,8 +43,10 @@ def md_rows(path, head):
     return rows
 
 
-q2base = md_rows('RESULTS_q2.md', '| 被験者 | KA-KD | KD-KA |')
-q2cons = md_rows('RESULTS_q2.md', '| 被験者 | 整合している |')
+# 第2問の基準値は採点データから計算し、確定記録の表と一致することを確かめてから使う
+import q12_tables as qt
+q2base = qt.check(md_rows('RESULTS_q2.md', '| 被験者 | KA-KD | KD-KA |'), qt.q2_table(), 'q2 選択')
+q2cons = qt.check(md_rows('RESULTS_q2.md', '| 被験者 | 整合している |'), qt.q2c_table(), 'q2 整合性')
 
 
 def choice(s, o, pos):

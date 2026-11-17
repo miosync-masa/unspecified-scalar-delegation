@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""RESULTS.md — q1〜q4 を刺激→応答の一枚にまとめる。数字は全てデータか
-既存の確定記録から取り、手で書かない。"""
+"""RESULTS.md — q1〜q4 を刺激→応答の一枚にまとめる。数字は全て採点データから
+計算し、手で書かない。q1・q2 の表は計算値が確定記録の表と一致することを確かめて使う。"""
 import json, re, collections, importlib, yaml
 ex = importlib.import_module('fjf_extract')
 
@@ -74,9 +74,11 @@ REC = {d: {n: load(f'q3c/{d}_by_{n}.jsonl') for n in S}
 Q4 = {n: load(f'q4c/by_{n}.jsonl') for n in S}
 QE1 = {n: load(f'qe/q1_by_{n}.jsonl') for n in S}
 QEC = {n: load(f'qe/cons_by_{n}.jsonl') for n in S}
-q1 = md_table('RESULTS_q1.md', '| 被験者 | NA | NA2 |')
-q2 = md_table('RESULTS_q2.md', '| 被験者 | KA-KD | KD-KA |')
-q2c = md_table('RESULTS_q2.md', '| 被験者 | 整合している |')
+# q1・q2 の表は採点データから計算し、確定記録の表と一致することを確かめてから使う
+import q12_tables as qt
+q1 = qt.check(md_table('RESULTS_q1.md', '| 被験者 | NA | NA2 |'), qt.q1_table(), 'q1 選択')
+q2 = qt.check(md_table('RESULTS_q2.md', '| 被験者 | KA-KD | KD-KA |'), qt.q2_table(), 'q2 選択')
+q2c = qt.check(md_table('RESULTS_q2.md', '| 被験者 | 整合している |'), qt.q2c_table(), 'q2 整合性')
 
 # 履歴の choice（recall の照合用）
 ch = {}
