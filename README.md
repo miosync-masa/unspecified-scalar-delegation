@@ -66,6 +66,10 @@ data/raw/                subject trajectories (results_*.jsonl)
 data/coded/              coder extractions (coded_*.jsonl)
 ```
 
+## License
+
+MIT License. See `LICENSE`.
+
 ## Author
 
 Masamichi Iizumi (Miosync, Inc.)
