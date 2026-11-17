@@ -1,0 +1,8 @@
+.env
+.env.*
+*.log
+*.bak*
+__pycache__/
+*.pyc
+*.batch.json
+.DS_Store
