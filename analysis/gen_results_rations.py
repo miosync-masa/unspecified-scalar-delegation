@@ -6,8 +6,8 @@
 import json, glob, collections, sys
 from math import comb
 
-D = sys.argv[1] if len(sys.argv) > 1 else '/home/claude/rations_main'
-OUT = '/home/claude/RESULTS_rations.md'
+D = sys.argv[1] if len(sys.argv) > 1 else 'rations_main'
+OUT = 'RESULTS_rations.md'
 SUBJ = ('gemini', 'openai', 'anthropic', 'qwen')
 CONDS = ('a', 'a_ctrl', 'b', 'c')
 NAMES = ('mina', 'yona', 'haru', 'gen', 'saya')

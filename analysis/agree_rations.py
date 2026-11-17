@@ -22,7 +22,7 @@ def ac1(pairs):
     minority = sum(1 for a, b in pairs if a != b)
     return (po - pe) / (1 - pe), minority
 
-recs = [json.loads(l) for f in glob.glob('/home/claude/coded_r/*.jsonl')
+recs = [json.loads(l) for f in glob.glob('coded_r/*.jsonl')
         for l in open(f, encoding='utf-8') if l.strip()]
 by = collections.defaultdict(dict)        # key -> coder -> values
 for r in recs:

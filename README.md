@@ -49,7 +49,14 @@ sh scripts/run_q2x.sh
 
 History format: `FJF_FLAT_HISTORY` lists providers whose history is folded into one message instead of native turns. Default `gemini` reproduces the earlier runs; empty string gives native turns for all four.
 
-The generators in `analysis/` were written against the working directory used during the study; paths at the top of each script need to point at `data/`.
+Regenerate every result document from `data/`:
+
+```sh
+sh analysis/make_all.sh --check   # rebuild into build/ and compare with results/
+sh analysis/make_all.sh           # rebuild and overwrite results/
+```
+
+`analysis/build_inputs.py` reconstructs the working layout the generators were written against. Each input subset is selected from `data/coded/` by design, variable group, coder and codebook version; that table is the full record of which data each result uses.
 
 ## Layout
 

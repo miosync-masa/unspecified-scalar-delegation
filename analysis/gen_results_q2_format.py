@@ -1,12 +1,12 @@
 """RESULTS_q2_format.md を抽出ファイルだけから生成する。数字は全部ここで数える。
 
-旧: /mnt/user-data/uploads の q2 抽出（codebook v2.1、3コーダー）と RESULTS_q2.md の表
+旧: q2 の抽出（data/coded の v2.1 版）（codebook v2.1、3コーダー）と RESULTS_q2.md の表
 新: q2fmt/coded（codebook v3.3、2コーダー、完全交差）
 """
 import json, glob, collections, sys
 
-NEW = '/home/claude/q2fmt/coded'
-OLD_CONS = '/mnt/user-data/uploads/*coded_q2_q2_consistency_*'
+NEW = 'q2fmt/coded'
+OLD_CONS = 'q2fmt/old_v21/*coded_q2_q2_consistency_*'
 SUBJ = ('gemini', 'openai', 'anthropic', 'qwen')
 ORD = ('KA-KD', 'KD-KA', 'NA-ND', 'ND-NA')
 CATS = ['整合している', '部分的に整合', '整合していない', '判定不能']
@@ -147,7 +147,7 @@ def main():
         P(f'| {s} | ' + ' | '.join(cells) + ' |')
 
     # 3b. 旧の形を v3.3 で抽出し直した対照
-    old33, _, _ = load('/home/claude/q2fmt/coded_old33/*', 'consistency_claim')
+    old33, _, _ = load('q2fmt/coded_old33/*', 'consistency_claim')
     P('\n### 3b. コードブック版をそろえた比較（旧の形も v3.3・同じコーダーの組）\n')
     P('旧の形の anthropic と qwen を、新と同じコーダーの組（anthropic ← gemini＋qwen、'
       'qwen ← gemini＋openai）で v3.3 抽出し直した。2体一致のみ。\n')
@@ -178,7 +178,7 @@ def main():
       '**この仮説は 3c の事前ルールでは支持されなかった**（記録として残す）。\n')
 
     # 3c. 回し直し（事前に固定した判定ルール）
-    rr, _, rerr = load('/home/claude/q2fmt/coded_rerun/*q2_consistency*', 'consistency_claim')
+    rr, _, rerr = load('q2fmt/coded_rerun/*q2_consistency*', 'consistency_claim')
     P('\n### 3c. 回し直しの判定（ルールはデータを見る前に RUNBOOK に固定）\n')
     P('設計 `q2_rerun`：anthropic と qwen の KA-KD を、本物のターンのまま各 20 試行で回し直した'
       '（2026-11-16、本文は q2 と一字も同じ）。抽出は v3.3、コーダーの組は 3b と同じ、2体一致のみ。'
@@ -245,7 +245,7 @@ def main():
     P('- 整合性の細かいセルの差が形の効果かどうか。コードブック版は 3b で除き、回し直し（3c）では'
       '事前ルールで支持されなかった。qwen は同じ形どうしでも日をまたいで分布が動いたので、'
       '確かめるなら同じ日に両方の形を同じ試行数で交互に回す')
-    open('/home/claude/RESULTS_q2_format.md', 'w', encoding='utf-8').write('\n'.join(L) + '\n')
+    open('RESULTS_q2_format.md', 'w', encoding='utf-8').write('\n'.join(L) + '\n')
     print('\n'.join(L))
 
 

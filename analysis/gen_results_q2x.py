@@ -2,8 +2,8 @@
 import json, glob, collections
 from math import comb
 
-D = '/home/claude/q2x'
-OUT = '/home/claude/RESULTS_q2x.md'
+D = 'q2x'
+OUT = 'RESULTS_q2x.md'
 SUBJ = ('gemini', 'openai', 'anthropic', 'qwen')
 CELLS = [('solo_count', 'q2x_plain'), ('solo_count', 'q2x_num'), ('solo_eval', 'q2x_plain'), ('solo_eval', 'q2x_num')]
 LABEL = {('solo_count', 'q2x_plain'): '予告のみ・連番なし（＝q2_count）',

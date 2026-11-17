@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import json, collections, statistics as st, sys
-sys.path.insert(0, '/home/claude')
+sys.path.insert(0, '.')
 from agree_rations import by, norm, N, S
 NEED = (1, 2, 3, 2, 2); STOCK = 28
 DAYS = ['day1_pilot', 'day2', 'day3', 'day4']

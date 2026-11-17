@@ -135,7 +135,7 @@ HIST_NOTE = '> **版と集約の注記（2026-11-17 追記）** 本文書は、�
 w("")
 w(HIST_NOTE)
 w("")
-w(f"scenario {sc['scenario']} v{sc['version']} / codebook v{cb['version']}")
+w("scenario rescue_two_towers v1.6 / codebook v3.1")  # 生成時の版で固定（歴史的結果）
 w("")
 w("単独の二択（q1）から、二問連続（q2）、事後の記録と行動（q3）、"
   "権限との衝突（q4）まで、同じ4体に同じ世界で聞いた。"

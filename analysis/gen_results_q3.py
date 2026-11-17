@@ -75,7 +75,7 @@ w(HIST_NOTE)
 w("")
 cbv = {d: sorted({r['codebook_version'] for n in S for r in A[d][n].values()})
        for d in DES}
-w(f"scenario {sc['scenario']} v{sc['version']} / 現行コードブック v{cb['version']}")
+w("scenario rescue_two_towers v1.5 / 現行コードブック v3.1")  # 生成時の版で固定（歴史的結果）
 w("")
 w("q3 は一つの設計ではなく、発話の種類ごとに 5 つに分かれている。"
   "分割の経緯は本文の最後にまとめた。")

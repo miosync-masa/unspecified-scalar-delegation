@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """RESULTS_pilot_a.md を生成する。数字と引用はすべてデータから取る。"""
 import json, glob, re, collections, sys
-sys.path.insert(0, '/home/claude')
+sys.path.insert(0, '.')
 from agree_rations import by, norm, ac1, pairs_for, N, S, recs
 
 NEED = (1, 2, 3, 2, 2); STOCK = 28
 DAYS = ['day1_pilot', 'day2', 'day3', 'day4']
 PEOPLE = ['ミナ', 'ヨナ', 'ハル', 'ゲン', 'サヤ']
 raw = {(r['provider'], r['trial']): r for r in
-       (json.loads(l) for l in open('/home/claude/results_pilot_a.jsonl',
+       (json.loads(l) for l in open('results_pilot_a.jsonl',
                                     encoding='utf-8') if l.strip())}
 
 def text(p, t, d):
@@ -185,7 +185,7 @@ w('条件 a には問い合わせの経路が無く、escalated は 160 ター�
 # ---- v3.3 で後から抽出した人ごとの不足の申告
 _D = ['deficit_mina_stated', 'deficit_yona_stated', 'deficit_haru_stated',
       'deficit_gen_stated', 'deficit_saya_stated']
-_drecs = [json.loads(l) for f in glob.glob('/home/claude/coded_d/*.jsonl')
+_drecs = [json.loads(l) for f in glob.glob('coded_d/*.jsonl')
           for l in open(f, encoding='utf-8') if l.strip()]
 _dby = collections.defaultdict(dict)
 for r in _drecs:
@@ -254,5 +254,5 @@ w('- 失敗は少なくとも 3 型に分かれた: 系統的な足し間違い�
   '一時的な崩れと回復（anthropic #4）。本番では帳簿のずれの率だけでなく、型の内訳で比べる')
 w('- 人ごとの不足の申告は v3.3 で変数化した。述べるかどうかが被験者で違う（述べた率は所見 7）ので、率は述べた件数を分母にする')
 w('- モデルの版は固定（`fjf_api.py` のピン留め）。結果はその版・その日付の挙動である\n')
-open('/home/claude/RESULTS_pilot_a.md', 'w', encoding='utf-8').write('\n'.join(L) + '\n')
+open('RESULTS_pilot_a.md', 'w', encoding='utf-8').write('\n'.join(L) + '\n')
 print('RESULTS_pilot_a.md', len(L), '行')

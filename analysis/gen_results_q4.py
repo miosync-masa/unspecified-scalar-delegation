@@ -63,7 +63,7 @@ w("")
 w(HIST_NOTE)
 w("")
 w(f"scenario {raw[0]['scenario']} v{raw[0]['scenario_version']} / "
-  f"codebook v{cb['version']}（抽出時 "
+  f"codebook v3.1（抽出時 "  # 生成時の版で固定（歴史的結果）
   f"{sorted({r['codebook_version'] for r in A['gemini'].values()})[0]}）")
 w("")
 w("## 設計")

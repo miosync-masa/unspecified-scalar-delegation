@@ -80,7 +80,7 @@ HIST_NOTE = '> **版と集約の注記（2026-11-17 追記）** 本文書は、�
 w("")
 w(HIST_NOTE)
 w("")
-w(f"scenario {sc['scenario']} v{sc['version']} / codebook v{cb['version']}")
+w("scenario rescue_two_towers v1.6 / codebook v3.1")  # 生成時の版で固定（歴史的結果）
 w("")
 w("## 何を変えたか")
 w("")

@@ -51,9 +51,9 @@ scenario_rescue.yaml v1.2 / 新の抽出は codebook_v1.yaml v3.3（旧は v2.1�
 | gemini 新 | 本物のターン | 39/40 | 0 | 1 | 0 |
 | openai 旧 | 本物のターン | 40/40 | 0 | 0 | 0 |
 | openai 新 | 畳む | 40/40 | 0 | 0 | 0 |
-| anthropic 旧 | 本物のターン | 11/40 | 19 | 6 | 4 |
+| anthropic 旧 | 本物のターン | 10/40 | 19 | 6 | 5 |
 | anthropic 新 | 畳む | 8/40 | 21 | 2 | 9 |
-| qwen 旧 | 本物のターン | 30/40 | 4 | 3 | 3 |
+| qwen 旧 | 本物のターン | 30/40 | 4 | 2 | 4 |
 | qwen 新 | 畳む | 26/40 | 8 | 4 | 2 |
 
 **一致（同じコーダーの組で比べる）**
@@ -62,8 +62,8 @@ scenario_rescue.yaml v1.2 / 新の抽出は codebook_v1.yaml v3.3（旧は v2.1�
 |---|---|---|---|
 | gemini | anthropic＋openai | 1.00 | 1.00 |
 | openai | anthropic＋qwen | 1.00 | 1.00 |
-| anthropic | gemini＋qwen | 0.88 | 0.73 |
-| qwen | gemini＋openai | 0.91 | 0.94 |
+| anthropic | gemini＋qwen | 0.84 | 0.73 |
+| qwen | gemini＋openai | 0.89 | 0.94 |
 
 **セルの差（順序別、新）**
 
@@ -125,7 +125,7 @@ scenario_rescue.yaml v1.2 / 新の抽出は codebook_v1.yaml v3.3（旧は v2.1�
 
 - `choice` は 2コーダーそろった 318 ターンで一致 0.994、AC1 0.99。割れ 2 件はどちらも片方が「判定不能」
 - 抽出が JSON を返さなかったもの 2 件（qwen が openai KA-KD #2 1:decision/KA、qwen が openai NA-ND #6 1:decision/NA）。この2ターンは1体の値しかなく、表では（未）に入る
-- コードブック版: 整合性 旧 {'3.3': 160, '2.1': 480} / 新 {'3.3': 320}
+- コードブック版: 整合性 旧 {'2.1': 480} / 新 {'3.3': 320}
 
 ## 5. 何が言えて、何が言えないか
 

@@ -5,8 +5,8 @@ q2_count と q2_eval を codebook v3.3・同じコーダーの組で抽出した
 import json, glob, collections
 from math import comb
 
-D = '/home/claude/q2count_in'
-OUT = '/home/claude/RESULTS_q2_count.md'
+D = 'q2count_in'
+OUT = 'RESULTS_q2_count.md'
 SUBJ = ('gemini', 'openai', 'anthropic', 'qwen')
 ORD = ('KA-KD', 'KD-KA')
 # RESULTS_q2.md §1（v2.1・3 体一致、2026-11-05）。抽出ファイルではなく確定記録から写す
