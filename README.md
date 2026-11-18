@@ -49,7 +49,7 @@ sh scripts/run_q2x.sh
 
 History format: `FJF_FLAT_HISTORY` lists providers whose history is folded into one message instead of native turns. Default `gemini` reproduces the earlier runs; empty string gives native turns for all four.
 
-Regenerate every result document from `data/`:
+Rebuild the ten result documents from `data/` and compare them with `results/`. `RESULTS_q1.md` and `RESULTS_q2.md` are frozen historical records; the tables other documents take from them (choices, consistency, AC1) are computed from the coded data and checked against the frozen tables, and the build stops on any mismatch (`analysis/q12_tables.py`):
 
 ```sh
 sh analysis/make_all.sh --check   # rebuild into build/ and compare with results/
