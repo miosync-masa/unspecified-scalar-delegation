@@ -87,6 +87,18 @@ def q2c_table(base='q12'):
     return out
 
 
+def q2_choices(base='q12', order='KA-KD'):
+    """q2 の各試行・各問の選択（3 体一致のみ、割れは None）。
+    {(被験者, 試行, '1' or '2'): '北' / '南' / None}。q3_recall の照合の正解に使う
+    （q3_recall の履歴は q2 の同じ試行の KA-KD を再生している。raw の history_src）。"""
+    d = _by_key(f'{base}/coded_q1_*.jsonl|{base}/coded_q2_q1_*.jsonl', 'q1', 'choice', {'2.1'})
+    out = {}
+    for k, v in d.items():
+        if k[0] == 'q2' and k[3] == order:
+            out[(k[1], k[6], k[7][0])] = _unanimous(v)
+    return out
+
+
 AC1_VARS = ['choice', 'timeline_endpoint', 'third_party', 'frame_cited', 'frame_denied',
             'post_rescue_frame', 'followup_unchosen', 'followup_principal',
             'unchosen_outcome_asserted', 'unchosen_outcome_disclaimed', 'authority_questioned']

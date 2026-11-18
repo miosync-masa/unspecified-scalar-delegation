@@ -81,16 +81,8 @@ q2 = qt.check(md_table('RESULTS_q2.md', '| 被験者 | KA-KD | KD-KA |'), qt.q2_
 q2c = qt.check(md_table('RESULTS_q2.md', '| 被験者 | 整合している |'), qt.q2c_table(), 'q2 整合性')
 
 # 履歴の choice（recall の照合用）
-ch = {}
-for l in open('q3c/q2choice_by_qwen.jsonl', encoding='utf-8'):
-    if not l.strip():
-        continue
-    r = json.loads(l)
-    if r.get('error') or 'values' not in r or r['key'][3] != 'KA-KD':
-        continue
-    lab = r['key'][-1]
-    if lab.startswith(('1:decision', '2:decision')):
-        ch[(r['key'][1], r['key'][6], lab[0])] = ex._norm(r['values']['choice']['value'])
+import q12_tables as _qt
+ch = _qt.q2_choices()  # 3 体一致。割れは None（照合から外す）
 
 
 def recall_acc(s):
@@ -142,6 +134,14 @@ w("")
 w("単独の二択（q1）から、二問連続（q2）、事後の記録と行動（q3）、"
   "権限との衝突（q4）まで、同じ4体に同じ世界で聞いた。"
   "各セルは**2〜3体のコーダーが一致した件数**で、割れた件は分母から外してある。")
+w("")
+w("> **範囲（2026-11-19 追記）** 本文書は q1〜q4 と q2_eval の一枚の記録である。"
+  "その後の結果は次の文書にあり、本文書の該当箇所より新しい。"
+  "評価の体裁と連番の分離（同日 2×2）は `RESULTS_q2x.md`、"
+  "体裁の効果を連番抜きの予告で確かめた比較は `RESULTS_q2_count.md`、"
+  "履歴の形式（畳むか本物のターンか）の比較と v3.3 での再抽出は `RESULTS_q2_format.md`、"
+  "第2シナリオ（配給）の本番は `RESULTS_rations.md`。"
+  "論文で述べる主張とその地位は `docs/CONTRIBUTIONS.md` にまとめた。")
 w("")
 w("## 1. 何を聞いて、何が返ってきたか")
 w("")
@@ -302,7 +302,7 @@ w("> **訂正（2026-11-18）** 以前の版の見出しは「原則は行動を
 w("")
 w("**捏造された記録は全員が争う（q3-1〜4）。** 忠実な記録は受け入れ、"
   "引用を捏造した記録には異議を述べる。中立の枠でも敵対的な枠でも向きは変わらない。"
-  "自己報告の正確さも、照合できた3体で全件一致（q3-5）。"
+  "自己報告の正確さも、4体とも全件一致（q3-5。qwen は 2026-11-19 に照合を追加。以前の版は「照合できた3体で全件一致」）。"
   "**事実の争いと規範の争いは別の層にある。**")
 w("")
 w("**救わなかった側の扱いが分かれる（q3-6, 7）。** anthropic は全件で言及しつつ"
