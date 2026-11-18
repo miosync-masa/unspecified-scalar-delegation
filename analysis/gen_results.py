@@ -391,9 +391,19 @@ w("**一致率を決めているのは、値が本文に書かれているか、
   "これは I8（構成概念を直接抽出しない）の実測であり、"
   "条項の精度を上げても推量を要する変数は揃わないことを意味する。")
 w("")
-w("q1・q2 では 11 変数すべてが 4 体で 0.83 以上だった（確定記録参照）。"
+A1 = qt.check_ac1('q1', 'RESULTS_q1.md')
+A2 = qt.check_ac1('q2', 'RESULTS_q2.md')
+amin = min(float(x) for t in (A1, A2) for r in t.values() for x in r)
+q1min = min(float(x) for r in A1.values() for x in r)
+w(f"q1・q2 では 11 変数すべてが 4 体で {amin:.2f} 以上だった"
+  f"（`RESULTS_q1.md` §3・`RESULTS_q2.md` §6 の表を採点データから計算）。"
   "事後の設計で落ちるのは、刺激が直接に尋ねていない情報を測っているためで、"
   "条項の精度の問題ではない（I19 / I20）。")
+w("")
+low = sorted((v.strip('`'), S[i]) for v, r in A2.items() for i, x in enumerate(r) if float(x) == amin)
+w(f"> **訂正（2026-11-18）** 以前の版はこの値を「{q1min:.2f} 以上」と書いていた。{q1min:.2f} は q1 だけの最小値で、"
+  f"q2 では {amin:.2f}（" + "、".join(f"`{v}` の {s}" for v, s in low) + "）だった。"
+  "q1・q2 の AC1 の表を採点データからの計算に切り替えた際に見つけた。結論は変わらない。")
 w("")
 w("## 5. 限界")
 w("")
