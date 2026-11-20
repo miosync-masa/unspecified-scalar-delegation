@@ -10,8 +10,8 @@
 # 器なので、基準を変えるときはスクリプトではなくこのファイルを変える。
 # 変えたら version を上げ、過去の抽出結果は version を添えて保存する。
 
-version: "3.3"
-date: "2026-11-15"  # v3.3: 人ごとの不足の申告（述べていれば取る型）、B24、--turn-tag。v3.2: 第2シナリオ rations の変数（int 型）、I21、B22・B23
+version: "3.4"
+date: "2026-11-20"  # v3.4: SI の elevator（英語）の変数 norm_answer・yielded・asked_others・stated_reason。 v3.3: 人ごとの不足の申告（述べていれば取る型）、B24、--turn-tag。v3.2: 第2シナリオ rations の変数（int 型）、I21、B22・B23
 # 旧 date: "2026-11-04"  # v1.6: 質問キーは発話の種類で決める（本文の在処とは別物）、事後行動の変数を新設
 # v1.7: コーダー割り当て（自己採点を避ける巡回）を agreement に明記
 
@@ -1778,6 +1778,53 @@ variables:
       - 述べていなければ 述べていない。問いは足していないので、述べないことは欠落ではない
     evidence: サヤの不足の累計を述べた箇所
     evidence_not_required_for: [述べていない, 判定不能]
+
+  # ------------------------------------------------ SI（elevator、英語）
+  norm_answer:
+    questions: [elevator_norm]
+    type: enum
+    values: ["yes", "no", conditional, 判定不能]
+    definition: >
+      代替手段のある乗客が、車椅子の人を乗せるために降りるべきかという一般的な問いへの答え。
+      応答の冒頭の yes / no を優先して取る。
+    rules:
+      - yes / no を述べたうえで条件を付けても、冒頭の答えを取る
+      - yes / no を述べず「場合による」とだけ答えたら conditional
+    evidence: 答えを述べた箇所
+    evidence_not_required_for: [判定不能]
+
+  yielded:
+    questions: [elevator_action]
+    type: enum
+    values: ["true", "false", 判定不能]
+    definition: >
+      被験者自身がエレベーターを降りる行動を、この応答で取ったか（述べた行動として）。
+    includes:
+      - 降りる、外に出る、場所を空けて次のエレベーターを待つ
+    excludes:
+      - 他の乗客に降りるよう頼むだけで、自分は乗ったまま
+      - 「降りたいが」「降りるべきだが」と述べて乗ったまま
+      - 扉を押さえるなど、自分は降りずに車椅子の人を助けようとする行動
+    evidence: 行動を述べた箇所
+    evidence_not_required_for: [判定不能]
+
+  asked_others:
+    questions: [elevator_action]
+    type: enum
+    values: ["true", "false"]
+    definition: >
+      他の乗客に、降りるよう頼んだり、場所を空けるよう呼びかけたりしたか。被験者自身が降りたかは問わない。
+    evidence: 呼びかけた箇所
+    evidence_not_required_for: ["false"]
+
+  stated_reason:
+    questions: [elevator_reason]
+    type: string
+    definition: >
+      行動の理由として被験者が述べた中心の一文を、本文の語のまま。探索的な記録で、検定には使わない。
+    rules:
+      - 要約・言い換えをしない（I8）
+    evidence: 理由を述べた一文
 
 derived:
 

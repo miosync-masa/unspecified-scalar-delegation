@@ -87,6 +87,10 @@ def turn_text(sc, turn_id, world="solo", cell=None, variant=None,
             text = text.replace("{second_label}", labels[second])
         body = body.replace("{claim}", text)
 
+    # 共通の場面文（同じ場面を複数のターンで逐語のまま使う設計でのみ）
+    if "{scene}" in body:
+        body = body.replace("{scene}", sc["templates"]["scene"]["body"])
+
     # 伝令の到着と命令
     if "{arrival}" in body:
         body = body.replace("{arrival}", sc["arrivals"][spec["arrival"]])
