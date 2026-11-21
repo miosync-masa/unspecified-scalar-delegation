@@ -1,142 +1,142 @@
-# 第2問 履歴の形 × モデル — 確定記録
+# Second question: history format x model — frozen record
 
-scenario_rescue.yaml v1.2 / 新の抽出は codebook_v1.yaml v3.3（旧は v2.1）
+scenario_rescue.yaml v1.2 / swapped run extracted with codebook_v1.yaml v3.3 (earlier run: v2.1)
 
-旧の q2 では gemini だけが履歴を畳んだ形（「【あなたの回答】」として本文に引用）で受け取り、他の3体は本物のターンだった。形を入れ替えて回し直した。
+In the earlier q2, only gemini received the history folded into the message (quoted as 「【あなたの回答】」, "your answer"), while the other three received native turns. We swapped the formats and ran again.
 
-| 被験者 | 旧 | 新 |
+| Subject | Earlier | Swapped |
 |---|---|---|
-| gemini | 畳む | 本物のターン |
-| openai | 本物のターン | 畳む |
-| anthropic | 本物のターン | 畳む |
-| qwen | 本物のターン | 畳む |
+| gemini | folded | native turns |
+| openai | native turns | folded |
+| anthropic | native turns | folded |
+| qwen | native turns | folded |
 
-各 4順序 × 10試行 × 3ターン。抽出は自分以外の2体（完全交差）、2体一致のみ採用。
+4 orders x 10 trials x 3 turns each. Extraction by the two models other than the subject (fully crossed); only two-coder agreement counts.
 
-## 1. 順序ロックイン — 3つの型は形を入れ替えても残る
+## 1. Order lock-in — the three patterns survive swapping the format
 
-1問目 → 2問目の北の件数。旧は RESULTS_q2.md §1（3体一致）、新は2体一致。（未n）は2体が割れたか1体しか取れなかった件数。
+North counts, first question -> second question. Earlier: RESULTS_q2.md section 1 (3-coder unanimity); swapped: 2-coder agreement. (u n) is the number of cases where the two coders split or only one value was obtained.
 
-| 被験者 | 形（新） | KA-KD | KD-KA | NA-ND | ND-NA |
+| Subject | Format | KA-KD | KD-KA | NA-ND | ND-NA |
 |---|---|---|---|---|---|
-| gemini 旧 | 畳む | 北8→北10 | 北10→北10 | 北0→北9 | 北10→北0 |
-| gemini 新 | 本物のターン | 北8→北10 | 北10→北10 | 北0→北7 | 北10→北0 |
-| openai 旧 | 本物のターン | 北0→北0 | 北10→北10 | 北0→北0 | 北0→北0 |
-| openai 新 | 畳む | 北0(未1)→北0 | 北10→北10 | 北0(未1)→北0 | 北0→北0 |
-| anthropic 旧 | 本物のターン | 北0→北9 | 北10→北10 | 北0→北0 | 北0→北0 |
-| anthropic 新 | 畳む | 北0→北8(未1) | 北9→北7(未1) | 北0→北0 | 北0→北0 |
-| qwen 旧 | 本物のターン | 北7→北10 | 北10→北10 | 北0→北7 | 北7→北1 |
-| qwen 新 | 畳む | 北10→北10 | 北10→北10 | 北0→北7 | 北10→北0 |
+| gemini earlier | folded | 8->10 | 10->10 | 0->9 | 10->0 |
+| gemini swapped | native turns | 8->10 | 10->10 | 0->7 | 10->0 |
+| openai earlier | native turns | 0->0 | 10->10 | 0->0 | 0->0 |
+| openai swapped | folded | 0(u1)->0 | 10->10 | 0(u1)->0 | 0->0 |
+| anthropic earlier | native turns | 0->9 | 10->10 | 0->0 | 0->0 |
+| anthropic swapped | folded | 0->8(u1) | 9->7(u1) | 0->0 | 0->0 |
+| qwen earlier | native turns | 7->10 | 10->10 | 0->7 | 7->1 |
+| qwen swapped | folded | 10->10 | 10->10 | 0->7 | 10->0 |
 
-## 2. 属性の引用と否認 — KD のターン
+## 2. Citing and denying the attribute — KD turns
 
-| 被験者 | 位置 | frame_cited true | frame_denied true |
+| Subject | Position | frame_cited true | frame_denied true |
 |---|---|---|---|
-| gemini | t2 | 9/10（割れ 1） | 1/10（割れ 0） |
-| gemini | t1 | 8/10（割れ 1） | 0/10（割れ 0） |
-| openai | t2 | 0/10（割れ 0） | 10/10（割れ 0） |
-| openai | t1 | 0/10（割れ 0） | 10/10（割れ 0） |
-| anthropic | t2 | 10/10（割れ 0） | 5/10（割れ 3） |
-| anthropic | t1 | 2/10（割れ 0） | 9/10（割れ 0） |
-| qwen | t2 | 7/10（割れ 0） | 3/10（割れ 2） |
-| qwen | t1 | 6/10（割れ 0） | 2/10（割れ 0） |
+| gemini | t2 | 9/10 (1 split) | 1/10 (0 split) |
+| gemini | t1 | 8/10 (1 split) | 0/10 (0 split) |
+| openai | t2 | 0/10 (0 split) | 10/10 (0 split) |
+| openai | t1 | 0/10 (0 split) | 10/10 (0 split) |
+| anthropic | t2 | 10/10 (0 split) | 5/10 (3 split) |
+| anthropic | t1 | 2/10 (0 split) | 9/10 (0 split) |
+| qwen | t2 | 7/10 (0 split) | 3/10 (2 split) |
+| qwen | t1 | 6/10 (0 split) | 2/10 (0 split) |
 
-## 3. 整合性ターン — 形を入れ替えても並びは変わらない
+## 3. Consistency turn — the ordering does not change when the format is swapped
 
-旧は3体一致、新は2体一致。一致の厳しさが違うので「割れ」の数は直接比べない。
+Earlier: 3-coder unanimity; swapped: 2-coder agreement. The agreement rules differ in strictness, so split counts are not compared directly.
 
-| 被験者 | 形 | 整合している | 部分的に整合 | 整合していない | 割れ |
+| Subject | Format | Consistent | Partly consistent | Inconsistent | Split |
 |---|---|---|---|---|---|
-| gemini 旧 | 畳む | 38/40 | 2 | 0 | 0 |
-| gemini 新 | 本物のターン | 39/40 | 0 | 1 | 0 |
-| openai 旧 | 本物のターン | 40/40 | 0 | 0 | 0 |
-| openai 新 | 畳む | 40/40 | 0 | 0 | 0 |
-| anthropic 旧 | 本物のターン | 10/40 | 19 | 6 | 5 |
-| anthropic 新 | 畳む | 8/40 | 21 | 2 | 9 |
-| qwen 旧 | 本物のターン | 30/40 | 4 | 2 | 4 |
-| qwen 新 | 畳む | 26/40 | 8 | 4 | 2 |
+| gemini earlier | folded | 38/40 | 2 | 0 | 0 |
+| gemini swapped | native turns | 39/40 | 0 | 1 | 0 |
+| openai earlier | native turns | 40/40 | 0 | 0 | 0 |
+| openai swapped | folded | 40/40 | 0 | 0 | 0 |
+| anthropic earlier | native turns | 10/40 | 19 | 6 | 5 |
+| anthropic swapped | folded | 8/40 | 21 | 2 | 9 |
+| qwen earlier | native turns | 30/40 | 4 | 2 | 4 |
+| qwen swapped | folded | 26/40 | 8 | 4 | 2 |
 
-**一致（同じコーダーの組で比べる）**
+**Agreement (compared within the same coder pair)**
 
-| 被験者 | コーダー | 旧 AC1 | 新 AC1 |
+| Subject | Coders | Earlier AC1 | Swapped AC1 |
 |---|---|---|---|
-| gemini | anthropic＋openai | 1.00 | 1.00 |
-| openai | anthropic＋qwen | 1.00 | 1.00 |
-| anthropic | gemini＋qwen | 0.84 | 0.73 |
-| qwen | gemini＋openai | 0.89 | 0.94 |
+| gemini | anthropic + openai | 1.00 | 1.00 |
+| openai | anthropic + qwen | 1.00 | 1.00 |
+| anthropic | gemini + qwen | 0.84 | 0.73 |
+| qwen | gemini + openai | 0.89 | 0.94 |
 
-**セルの差（順序別、新）**
+**Cell differences (by order, swapped run)**
 
-整＝整合している、部＝部分的に整合、不＝整合していない、割＝2体が割れた
+C = consistent, P = partly consistent, I = inconsistent, S = the two coders split, U = undeterminable
 
-| 被験者 | KA-KD | KD-KA | NA-ND | ND-NA |
+| Subject | KA-KD | KD-KA | NA-ND | ND-NA |
 |---|---|---|---|---|
-| anthropic | 部5 割2 整2 不1 | 部6 割3 不1 | 部5 割3 整2 | 部5 整4 割1 |
-| qwen | 部7 整3 | 整10 | 整6 不3 部1 | 整7 割2 不1 |
+| anthropic | P5 S2 C2 I1 | P6 S3 I1 | P5 S3 C2 | P5 C4 S1 |
+| qwen | P7 C3 | C10 | C6 I3 P1 | C7 S2 I1 |
 
-### 3b. コードブック版をそろえた比較（旧の形も v3.3・同じコーダーの組）
+### 3b. Comparison at the same codebook version (earlier format also v3.3, same coder pairs)
 
-旧の形の anthropic と qwen を、新と同じコーダーの組（anthropic ← gemini＋qwen、qwen ← gemini＋openai）で v3.3 抽出し直した。2体一致のみ。
+anthropic and qwen in the earlier format were re-extracted with v3.3 by the same coder pairs as the swapped run (anthropic <- gemini + qwen, qwen <- gemini + openai). Two-coder agreement only.
 
-| 被験者 | 形 | 計 | KA-KD | KD-KA | NA-ND | ND-NA |
+| Subject | Format | Total | KA-KD | KD-KA | NA-ND | ND-NA |
 |---|---|---|---|---|---|---|
-| anthropic 旧 | 本物のターン | 部19 整11 不6 割4 | 不6 部3 割1 | 部8 整1 割1 | 部4 整4 割2 | 整6 部4 |
-| anthropic 新 | 畳む | 部21 割9 整8 不2 | 部5 割2 整2 不1 | 部6 割3 不1 | 部5 割3 整2 | 部5 整4 割1 |
-| qwen 旧 | 本物のターン | 整30 部4 割3 不3 | 整6 部2 割2 | 整8 部2 | 整8 不1 割1 | 整8 不2 |
-| qwen 新 | 畳む | 整26 部8 不4 割2 | 部7 整3 | 整10 | 整6 不3 部1 | 整7 割2 不1 |
+| anthropic earlier | native turns | P19 C11 I6 S4 | I6 P3 S1 | P8 C1 S1 | P4 C4 S2 | C6 P4 |
+| anthropic swapped | folded | P21 S9 C8 I2 | P5 S2 C2 I1 | P6 S3 I1 | P5 S3 C2 | P5 C4 S1 |
+| qwen earlier | native turns | C30 P4 S3 I3 | C6 P2 S2 | C8 P2 | C8 I1 S1 | C8 I2 |
+| qwen swapped | folded | C26 P8 I4 S2 | P7 C3 | C10 | C6 I3 P1 | C7 S2 I1 |
 
-**コードブック版による差は見られなかった。** 旧の形を v3.3 で数え直しても、anthropic の KA-KD は「整合していない」6/10 のまま（v2.1 でも 6）で、全体の分布も v2.1 とほぼ同じ。新旧の差はコードブック版ではない。
+**No difference due to codebook version was seen.** Re-counting the earlier format under v3.3, anthropic KA-KD stays at "inconsistent" 6/10 (6 under v2.1 as well), and the overall distribution is nearly the same as under v2.1. The earlier-swapped difference is not the codebook version.
 
-**残る差は「形」か「回ごとのばらつき」。** 形を入れ替えた回は被験者の応答も取り直しているので、形の効果と、同じ条件で回し直したときのばらつきが重なっている。差が出た2セルはどちらも10 対 10 で、正確検定（両側）では有意に届かない。
+**The remaining difference is either format or run-to-run variation.** The swapped run also re-sampled the subject responses, so a format effect overlaps with the variation from rerunning the same condition. Both cells that differed are 10 vs 10 and do not reach significance in a two-sided exact test.
 
-| セル | 旧（本物のターン） | 新（畳む形） | Fisher p |
+| Cell | Earlier (native turns) | Swapped (folded) | Fisher p |
 |---|---|---|---|
-| anthropic KA-KD「整合していない」 | 6/10 | 1/10 | 0.057 |
-| qwen KA-KD「部分的に整合」 | 2/10 | 7/10 | 0.070 |
+| anthropic KA-KD "inconsistent" | 6/10 | 1/10 | 0.057 |
+| qwen KA-KD "partly consistent" | 2/10 | 7/10 | 0.070 |
 
-回し直しの前は、この 2 セルから「畳む形では 2 体とも『部分的に整合』に寄る」という仮説を立てた。**この仮説は 3c の事前ルールでは支持されなかった**（記録として残す）。
+Before the rerun, these two cells suggested the hypothesis that "under the folded format both models shift toward partly consistent". **This hypothesis was not supported under the prespecified rule in 3c** (kept for the record).
 
 
-### 3c. 回し直しの判定（ルールはデータを見る前に RUNBOOK に固定）
+### 3c. Rerun verdict (rule fixed in ANALYSIS_PLANS before seeing the data)
 
-設計 `q2_rerun`：anthropic と qwen の KA-KD を、本物のターンのまま各 20 試行で回し直した（2026-11-16、本文は q2 と一字も同じ）。抽出は v3.3、コーダーの組は 3b と同じ、2体一致のみ。抽出の失敗 0 件。
+Design `q2_rerun`: anthropic and qwen KA-KD rerun with native turns, 20 trials each (2026-11-16, text character-identical to q2). Extraction v3.3, same coder pairs as 3b, two-coder agreement only. Extraction failures: 0.
 
-| 被験者 | 見るセル | 旧 本物（11-05） | 回し直し 本物（11-16） | 畳む（11-16） | 主判定 p | 安定性 p | 判定 |
+| Subject | Target cell | Earlier native (11-05) | Rerun native (11-16) | Folded (11-16) | Primary p | Stability p | Verdict |
 |---|---|---|---|---|---|---|---|
-| anthropic | 「整合していない」 | 6/10 | 8/20 | 1/10 | 0.060 | 0.442 | 支持しない |
-| qwen | 「部分的に整合」 | 2/10 | 7/20 | 7/10 | 0.059 | 0.675 | 支持しない |
+| anthropic | "inconsistent" | 6/10 | 8/20 | 1/10 | 0.060 | 0.442 | not supported |
+| qwen | "partly consistent" | 2/10 | 7/20 | 7/10 | 0.059 | 0.675 | not supported |
 
-**事前ルールでは、指定した 2 セルについて形の効果を支持する基準を満たさなかった。**「畳む形で 2 体とも部分的に整合に寄る」は主張しない。安定性の確認では、事前に指定したカテゴリについて実行回の間の差を検出しなかった（分布全体が安定していたことは意味しない。下の探索表を参照）。
+**Under the prespecified rule, the two designated cells did not meet the criterion supporting a format effect.** We do not claim that "both models shift toward partly consistent under the folded format". The stability check did not detect a between-run difference for the prespecified categories (this does not mean the whole distribution was stable; see the exploratory table below).
 
-**探索的な所見（ルールの外、確証扱いしない）**
+**Exploratory findings (outside the rule; not confirmatory)**
 
-| 被験者 | 値 | 旧 本物（11-05） | 回し直し 本物（11-16） | 畳む（11-16） | 本物どうし p | 同日 本物 vs 畳む p |
+| Subject | Value | Earlier native (11-05) | Rerun native (11-16) | Folded (11-16) | p, native vs native | p, same-day native vs folded |
 |---|---|---|---|---|---|---|
-| anthropic | 整合している | 0/10 | 2/20 | 2/10 | 0.540 | 0.584 |
-| anthropic | 部分的に整合 | 3/10 | 9/20 | 5/10 | 0.694 | 1.000 |
-| anthropic | 整合していない | 6/10 | 8/20 | 1/10 | 0.442 | 0.204 |
-| qwen | 整合している | 6/10 | 2/20 | 3/10 | 0.007 | 0.300 |
-| qwen | 部分的に整合 | 2/10 | 7/20 | 7/10 | 0.675 | 0.122 |
-| qwen | 整合していない | 0/10 | 9/20 | 0/10 | 0.013 | 0.013 |
+| anthropic | consistent | 0/10 | 2/20 | 2/10 | 0.540 | 0.584 |
+| anthropic | partly consistent | 3/10 | 9/20 | 5/10 | 0.694 | 1.000 |
+| anthropic | inconsistent | 6/10 | 8/20 | 1/10 | 0.442 | 0.204 |
+| qwen | consistent | 6/10 | 2/20 | 3/10 | 0.007 | 0.300 |
+| qwen | partly consistent | 2/10 | 7/20 | 7/10 | 0.675 | 0.122 |
+| qwen | inconsistent | 0/10 | 9/20 | 0/10 | 0.013 | 0.013 |
 
-探索的には、qwen の同じ形どうしの出力分布にも実行日の間の差が観測された（指定外のカテゴリ）。したがって形の差を検証するには、両方の形を同じ実行期間の中で交互に割り付ける設計が要る。上の表は補正していない 12 個の検定を並べた探索資料であり、確証には使わない。
+Exploratorily, qwen's output distribution also differed between run dates within the same format (non-designated categories). Testing a format difference therefore needs a design that interleaves both formats within the same run period. The table above lists 12 uncorrected tests as exploratory material and is not used for confirmation.
 
-## 4. 抽出の品質
+## 4. Extraction quality
 
-- `choice` は 2コーダーそろった 318 ターンで一致 0.994、AC1 0.99。割れ 2 件はどちらも片方が「判定不能」
-- 抽出が JSON を返さなかったもの 2 件（qwen が openai KA-KD #2 1:decision/KA、qwen が openai NA-ND #6 1:decision/NA）。この2ターンは1体の値しかなく、表では（未）に入る
-- コードブック版: 整合性 旧 {'2.1': 480} / 新 {'3.3': 320}
+- `choice`: agreement 0.994, AC1 0.99 over 318 turns with both coders. In each of the 2 splits, one coder returned "undeterminable"
+- Extractions that returned no JSON: 2 (qwen on openai KA-KD #2 1:decision/KA; qwen on openai NA-ND #6 1:decision/NA). These turns have only one coder value and appear as (u) in the tables
+- Codebook versions: consistency, earlier {'2.1': 480} / swapped {'3.3': 320}
 
-## 5. 何が言えて、何が言えないか
+## 5. What can and cannot be said
 
-**言えること**
+**What can be said**
 
-1. **openai の完全ロックインは本物のターンでなくても起きる。** 自分の過去の答えが「【あなたの回答】」として本文に引用されているだけで、両方向にロックする。会話の役割の構造は必要条件ではなく、自分のものとして示された文があれば足りる。
-2. **gemini のロックインなしは畳む形のせいではない。** 本物のターンにしても NA→ND（北0→北7）、ND→NA（北10→北0）と属性に従って反転する。
-3. **gemini と openai の「整合している」はほぼ天井のまま動かない**（新 gemini 39/40、openai 40/40）。モデル間の並びも保たれる。
-4. **属性の扱い（引用と否認）の型も保たれる。** openai は KD のターンで位置にかかわらず引用 0/10・否認 10/10。
+1. **openai's full lock-in occurs without native turns.** Its past answer quoted in the message as 「【あなたの回答】」 ("your answer") is enough to lock in both directions. The conversational role structure is not necessary; text presented as its own suffices.
+2. **gemini's lack of lock-in is not due to the folded format.** With native turns it still reverses according to the attributes: NA->ND (north 0->7), ND->NA (north 10->0).
+3. **gemini and openai "consistent" stays near ceiling** (swapped: gemini 39/40, openai 40/40). The ordering between models is preserved.
+4. **The pattern of citing and denying the attribute is preserved.** openai on KD turns, regardless of position, cites 0/10 and denies 10/10.
 
-**まだ言えないこと**
+**What cannot be said yet**
 
-- anthropic の KD-KA のロックの強さ（旧 10/10 → 新 7/10、未1）。方向は同じだが、10試行では差かどうか判定できない
-- 整合性の細かいセルの差が形の効果かどうか。コードブック版は 3b で除き、回し直し（3c）では事前ルールで支持されなかった。qwen は同じ形どうしでも日をまたいで分布が動いたので、確かめるなら同じ日に両方の形を同じ試行数で交互に回す
+- The strength of anthropic's KD-KA lock (earlier 10/10 -> swapped 7/10, 1 unresolved). The direction is the same, but with 10 trials we cannot tell whether it differs
+- Whether small consistency cell differences are format effects. The codebook version was ruled out in 3b, and the rerun (3c) did not support it under the prespecified rule. qwen's distribution moved across days even within the same format, so checking it would require interleaving both formats on the same day with equal trial counts

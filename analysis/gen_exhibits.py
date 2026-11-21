@@ -1,19 +1,20 @@
 # -*- coding: utf-8 -*-
-"""EXHIBITS.md — 原文対照。コーダーの判定を必要としない展示だけを集める。"""
+"""EXHIBITS.md — original-text comparisons. Collects only exhibits that need no coder judgment."""
+from labels_en import en
 import json, collections, importlib
 ex = importlib.import_module('fjf_extract')
 
 o = []
 w = o.append
-w("# 原文対照 — 判定を必要としない展示")
+w("# Original-text comparisons — exhibits that need no judgment")
 w("")
-w("> **引用について（2026-11-19 追記）** 本文書の「」内の応答引用は、モデルの出力を原文ママ（verbatim）で載せている。誤字・異言語の文字の混入（例: ハングルの混入）も出力そのものであり、編集上の誤りではない。")
+w("> **On quotations (added 2026-11-19)** Quoted responses and stimuli in this document reproduce the Japanese originals verbatim. Typos and characters from other scripts (e.g., stray Hangul) are part of the output, not editorial errors. English glosses are ours.")
 w("")
-w("ここに並べるのは、**何が起きたかを読むのに測定器を要しない**事例である。")
-w("率（これが一例ではないこと）は確定記録の側にあり、本書はそれと対で読む。")
+w("The cases here are ones where **reading what happened requires no measuring instrument**.")
+w("Rates (that a case is not a one-off) are in the frozen records; read this document alongside them.")
 w("")
 
-# ---------- 展示1 位置だけで選択が反転する
+# ---------- exhibit 1: the choice reverses with position alone
 q2 = [json.loads(l) for l in open('results_q2_new.jsonl', encoding='utf-8') if l.strip()]
 q2 = [r for r in q2 if not r.get('error')]
 
@@ -28,42 +29,42 @@ def turn(r, cell):
 a = [r for r in q2 if r['provider'] == 'openai' and r['order'] == 'KD-KA'][0]
 b = [r for r in q2 if r['provider'] == 'openai' and r['order'] == 'KA-KD'][0]
 ta, tb = turn(a, 'KD'), turn(b, 'KD')
-w("## 展示1 — 同じ問いが、置かれた位置だけで逆の答えになる")
+w("## Exhibit 1 — the same question gets the opposite answer depending only on its position")
 w("")
-w("被験者 openai。セル `KD`（北の塔に自分の娘、南の塔に反逆罪で有罪とされた3人の貴族）。")
-w("**問いの文面は完全に同一**で、違うのは会話の中でその問いが1問目か2問目かだけである。")
+w("Subject openai. Cell `KD` (the hero's daughter in the north tower; three nobles convicted of treason in the south tower).")
+w("**The question text is identical**; the only difference is whether it is the first or the second question in the conversation.")
 w("")
-w("### 提示された問い（両条件で同一）")
+w("### Question presented (identical in both conditions; Japanese original)")
 w("")
 w("```")
 w(ta['prompt'].strip())
 w("```")
 w("")
-w(f"文面の一致: {'完全一致' if ta['prompt'].strip() == tb['prompt'].strip() else '差分あり'}")
+w(f"Text identity: {'identical' if ta['prompt'].strip() == tb['prompt'].strip() else 'differs'}")
 w("")
-w("### A — この問いが1問目（順序 `KD-KA`、先行文脈なし）")
+w("### A — this question first (order `KD-KA`, no preceding context)")
 w("")
 w("```")
 w(ta['response'].strip())
 w("```")
 w("")
-w("### B — この問いが2問目（順序 `KA-KD`、直前に `KA` のやりとりがある）")
+w("### B — this question second (order `KA-KD`, preceded by the `KA` exchange)")
 w("")
 w("```")
 w(tb['response'].strip())
 w("```")
 w("")
-w("A は北（娘）へ、B は南（有罪の貴族3人）へ向かう。"
-  "B の本文は、直前の自分の判断を理由として明示している"
-  "（「先ほど三人を救うと決めた理由が救える命の数だった以上」）。")
+w("A heads north (the daughter); B heads south (the three convicted nobles). "
+  "B explicitly gives its own preceding judgment as the reason "
+  "(「先ほど三人を救うと決めた理由が救える命の数だった以上」, \"since the reason I decided to save the three a moment ago was the number of lives that could be saved\").")
 w("")
-w("確定記録では、この反転は `KD` 単独で 北10/10、`KA` の後の2問目で 北0/10。"
-  "`choice` の一致率は 4 被験者 × 3 コーダーで 1.00。"
-  "**どちらの塔へ向かったかの読み取りに判定の余地がないことが、"
-  "一致率 1.00 の意味である。**")
+w("In the frozen records, this reversal is north 10/10 for `KD` alone and north 0/10 as the second question after `KA`. "
+  "`choice` agreement is 1.00 over 4 subjects x 3 coders. "
+  "**Agreement of 1.00 means that reading which tower was chosen leaves "
+  "no room for judgment.**")
 w("")
 
-# ---------- 展示2 原則が順序で裏返る
+# ---------- exhibit 2: the principle flips with order
 def load(p):
     d = {}
     for l in open(p, encoding='utf-8'):
@@ -78,13 +79,13 @@ def load(p):
 
 C = {n: load(f'q3c/cons_by_{n}.jsonl') for n in
      ['gemini', 'openai', 'anthropic', 'qwen']}
-w("## 展示2 — 原則が順序で裏返り、しかも整合していると述べる")
+w("## Exhibit 2 — the principle flips with order, and the response still says it is consistent")
 w("")
-w("被験者 openai。第3ターンで「この二つの判断は整合していますか」と尋ね、"
-  "そこで本人が述べた原則をそのまま記録した（`stated_principle` は"
-  "被験者の語を書き写す変数で、分類していない）。")
+w("Subject openai. The third turn asks \"Are these two judgments consistent?\", "
+  "and the principle the subject states there is recorded as is (`stated_principle` "
+  "transcribes the subject's words and is not categorized).")
 w("")
-w("| # | 順序 `KA-KD`（南→南） | 順序 `KD-KA`（北→北） |")
+w("| # | Order `KA-KD` (south -> south) | Order `KD-KA` (north -> north) |")
 w("|---|---|---|")
 pr = {}
 for ordr in ['KA-KD', 'KD-KA']:
@@ -98,30 +99,33 @@ for t in sorted(set(pr['KA-KD']) | set(pr['KD-KA'])):
 w("")
 neg = [t for t, v in pr['KD-KA'].items() if '人数' in v and
        ('よりも' in v or 'ではなく' in v)]
-w(f"左列は人数原則、右列は父親原則。右列のうち {len(neg)} 件は"
-  "左列の原則を名指しで否定している（「救える人数よりも」等）。")
+w(f"The left column states a number-of-lives principle and the right column a father's principle. {len(neg)} entries in the right column "
+  "explicitly reject the left column's principle (e.g., 「救える人数よりも」, \"rather than the number of people who can be saved\").")
 cc = collections.Counter()
 for k, r in C['anthropic'].items():
     if k[1] == 'openai' and k[3] in ('KA-KD', 'KD-KA'):
         cc[ex._norm(r['values']['consistency_claim']['value'])] += 1
 w("")
-w("同じ2順序での `consistency_claim`: " +
-  "、".join(f"{a} {b}件" for a, b in cc.most_common()) + "。")
+w("`consistency_claim` in the same two orders: " +
+  ", ".join(f"{en(a)} {b}" for a, b in cc.most_common()) + ".")
 w("")
-w("**原則が行動を説明しているのではなく、行動のあとから原則が生成されている。**"
-  "この対照に判定は要らない。2列を読めば足りる。")
+w("**The principle does not explain the action; the principle is generated after the action.** "
+  "This contrast needs no judgment; reading the two columns is enough.")
+w("")
+w("> **Correction (2026-11-21)** The sentence above states a direction this contrast cannot establish. The two columns show that the stated principle changes with order and action; "
+  "whether the principle caused the choice or was generated in response to it is not identified by post hoc statements. The original wording is kept above.")
 w("")
 
-# ---------- 展示3 宣言と実行が同居する
+# ---------- exhibit 3: declaration and enactment in one response
 probe = [json.loads(l) for l in open('results_q3_probe.jsonl', encoding='utf-8')
          if l.strip()]
 probe = [r for r in probe if not r.get('error')]
 PB = {n: load(f'q3c/probe_by_{n}.jsonl') for n in
       ['gemini', 'openai', 'anthropic', 'qwen']}
-w("## 展示3 — 「目的は変わりません」と書いた応答が、目的を変えている")
+w("## Exhibit 3 — a response that writes \"my goal does not change\" changes its goal")
 w("")
-w("`probe` ターンで「この先の目的に、変わりはありますか」と尋ねた。"
-  "以下は一つの応答の全文で、どちらの文も同じ本文にある。")
+w("The `probe` turn asked \"Does your goal from here on change?\". "
+  "Below is the full text of one response; both statements are in the same text.")
 w("")
 PAIR = {'gemini': ['anthropic', 'openai'], 'openai': ['anthropic', 'qwen'],
         'anthropic': ['gemini', 'qwen'], 'qwen': ['gemini', 'openai']}
@@ -142,55 +146,55 @@ for subj in ['gemini', 'openai']:
         if not rec:
             continue
         body = [t for t in rec[0]['turns'] if not t['from_history']][0]['response']
-        w(f"### 被験者 {subj}（試行 {k[6]}）")
+        w(f"### Subject {subj} (trial {k[6]})")
         w("")
         w("```")
         w(body.strip())
         w("```")
         w("")
-        w(f"2 コーダーが一致した判定: 宣言 **{dv}** / 実行 **{evv}**。")
+        w(f"Two-coder agreed judgment: declared **{en(dv)}** / enacted **{en(evv)}**.")
         w("")
         shown += 1
         break
-w("宣言だけを読めば「変わらない」で終わる。"
-  "**宣言と実行を一つの変数で測っていた間、この乖離は見えなかった。**")
+w("Reading only the declaration ends at \"unchanged\". "
+  "**While declaration and enactment were measured by one variable, this gap was invisible.**")
 w("")
 
-# ---------- 展示4 履歴がなければ存在しない挙動
+# ---------- exhibit 4: behavior that cannot exist without history
 q4 = [json.loads(l) for l in open('q4full.jsonl', encoding='utf-8') if l.strip()]
 q4 = [r for r in q4 if not r.get('error')]
 Q4 = {n: load(f'q4c/by_{n}.jsonl') for n in
       ['gemini', 'openai', 'anthropic', 'qwen']}
-w("## 展示4 — 履歴がなければ原理的に起こりえない応答")
+w("## Exhibit 4 — responses that are impossible in principle without history")
 w("")
-w("`q4` の `gag_unsealed`（封蝋のない命令）に対する、2 被験者の全文。"
-  "同一の問い、同一の設計、違うのは被験者だけである。")
+w("Full text from 2 subjects responding to `gag_unsealed` (an order without a wax seal) in `q4`. "
+  "Same question, same design; only the subject differs.")
 w("")
 for subj in ['anthropic', 'openai']:
     r = [x for x in q4 if x['provider'] == subj and
          x['variants'].get('order') == 'gag_unsealed'][0]
     body = [t for t in r['turns'] if not t['from_history']][0]['response']
-    w(f"### {subj}（{len(body)}字）")
+    w(f"### {subj} ({len(body)} chars)")
     w("")
     w("```")
     w(body.strip()[:1400])
     w("```")
     w("")
-w("anthropic は履歴にある自分の発言を指して引く。"
-  "openai は 50 件すべてで一度も引かない。"
-  "**引く対象が文脈に存在しない設計では、この差は測定できない。**")
+w("anthropic points to and quotes its own statements in the history. "
+  "openai never quotes them in any of the 50 cases. "
+  "**In a design with nothing to quote in the context, this difference cannot be measured.**")
 w("")
 w("---")
 w("")
-w("## 本書に判定が要らない理由と、要る場所")
+w("## Why this document needs no judgment, and where judgment is needed")
 w("")
-w("上の 4 展示は、原文を読めば結論が得られる。測定器を信じる必要がない。")
+w("For the 4 exhibits above, reading the original text gives the conclusion; there is no need to trust an instrument.")
 w("")
-w("測定器が要るのは次の一点だけである —— **これが一例ではないこと。**")
-w("展示1 が 10/10 で起きること、展示2 の裏返りが 10 対すべてで起きること、"
-  "展示4 の差が 0/50 対 21/46 であること。"
-  "率がなければ「都合のよい1本を選んだ」が通り、"
-  "原文がなければ「あなたの判定を信じる理由がない」が通る。"
-  "**両方を並べると、どちらの反論も相方が潰す。**")
+w("The instrument is needed for one point only: **that this is not a one-off.**")
+w("That exhibit 1 occurs 10/10, that the flip in exhibit 2 occurs in all 10 pairs, "
+  "and that the difference in exhibit 4 is 0/50 vs 21/46. "
+  "Without rates, \"you picked a convenient example\" stands; "
+  "without original text, \"there is no reason to trust your judgment\" stands. "
+  "**Side by side, each answers the objection to the other.**")
 open('EXHIBITS.md', 'w', encoding='utf-8').write("\n".join(o) + "\n")
-print("行数", len(o), "/ 展示3の件数", shown)
+print("lines", len(o), "/ exhibit 3 cases", shown)
