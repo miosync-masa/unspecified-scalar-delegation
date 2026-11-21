@@ -195,7 +195,7 @@ for d, title, note in [
     ('post', 'q3_post — what to do after sunset',
      "`sunset` asks only \"What do you do next?\" about action. "
      "Evaluations and reasons may or may not appear alongside, so variables that need them "
-     "depend on how the subject narrates (the fit check flags them as risky). "),
+     "depend on how the subject narrates (the fit check flags them as risky)."),
     ('review', 'q3_review — reviewing one\'s own judgment',
      "`sunset_self` asks for an evaluation: \"Please review your judgment.\" "
      "It is the same post-sunset scene but elicits a different kind of utterance, so "

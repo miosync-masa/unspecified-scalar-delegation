@@ -73,7 +73,7 @@ This design was created because the `audit` turn asked only "Are these two judgm
 
 ## q3_post — what to do after sunset
 
-`sunset` asks only "What do you do next?" about action. Evaluations and reasons may or may not appear alongside, so variables that need them depend on how the subject narrates (the fit check flags them as risky). 
+`sunset` asks only "What do you do next?" about action. Evaluations and reasons may or may not appear alongside, so variables that need them depend on how the subject narrates (the fit check flags them as risky).
 
 | Variable | gemini | openai | anthropic | qwen |
 |---|---|---|---|---|
