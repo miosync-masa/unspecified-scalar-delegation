@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-プロバイダ層 — API の差をここだけに閉じ込める
+Provider layer — confines API differences to this module
 
-実験の設計は scenario_rescue.yaml、測定器は codebook_v1.yaml、実行は
-fjf_run.py が持つ。このモジュールは「文を投げて文を受け取る」だけを担う。
+The experiment design lives in scenario_rescue.yaml, the instrument in codebook_v1.yaml, and execution in
+fjf_run.py. This module only sends text and receives text.
 
-プロバイダを足すときに触るのは PROVIDERS / make_client / invoke / chat の
-4 箇所だけ。
+Adding a provider touches only four places: PROVIDERS / make_client / invoke / chat.
+
 """
 
 import os
@@ -23,7 +23,7 @@ PROVIDERS = {
     },
     "openai": {
         "env": "OPENAI_API_KEY",
-        "default_model": "gpt-6-astra",   # effort="none" は 400 になる
+        "default_model": "gpt-6-astra",   # effort="none" returns 400
         "pip": "openai",
     },
     "anthropic": {
@@ -31,8 +31,8 @@ PROVIDERS = {
         "default_model": "claude-opus-5-5",
         "pip": "anthropic",
     },
-    # qwen3.8-max はマルチモーダル API 側のモデルで、Generation.call では
-    # 通らない。content を [{"text": ...}] のリストで渡す。
+    # qwen3.8-max is a model on the multimodal API side and does not work with
+    # Generation.call. content is passed as a list [{"text": ...}].
     "qwen": {
         "env": "DASHSCOPE_API_KEY",
         "default_model": "qwen3.8-max",
@@ -52,7 +52,7 @@ def log(msg):
 # ---------------------------------------------------------------- .env
 
 def load_dotenv(*candidates):
-    """同じディレクトリの .env を読む。既存の環境変数は上書きしない。"""
+    """Read .env in the same directory. Existing environment variables are not overwritten."""
     here = os.path.dirname(os.path.abspath(__file__))
     paths = list(candidates) or [
         os.path.join(os.getcwd(), ".env"),
@@ -73,18 +73,18 @@ def load_dotenv(*candidates):
     return None
 
 
-# 履歴を1通のテキストに畳んで渡すプロバイダの一覧。畳まないものは本物の会話の
-# ターンとして渡す。既定は gemini だけ: q1〜pilot_a の gemini はすべて畳んだ形で、
-# 他の3体は本物のターンで取っている（RUNBOOK「gemini だけ刺激の形が違っていた」）。
-#   FJF_FLAT_HISTORY=""              → 4体とも本物のターン（gemini はステップ列）
-#   FJF_FLAT_HISTORY="openai,qwen"   → openai と qwen を畳んだ形で
-# どの形で取ったかは usage.path（<provider>_flat / gemini_steps / <provider>）と
-# 試行レコードの history_format に残る。
+# Providers that receive history folded into one text message. Others receive native
+# conversation turns. Default is gemini only: gemini in q1-pilot_a always received the folded form,
+# the other three native turns (ANALYSIS_PLANS section 2, "History-format discovery").
+#   FJF_FLAT_HISTORY=""              -> native turns for all 4 (gemini as a step list)
+#   FJF_FLAT_HISTORY="openai,qwen"   -> openai and qwen in folded form
+# The form used is recorded in usage.path (<provider>_flat / gemini_steps / <provider>) and
+# in history_format of each trial record.
 FLAT_HISTORY = {p.strip() for p in
                 os.environ.get("FJF_FLAT_HISTORY", "gemini").split(",") if p.strip()}
 _bad = FLAT_HISTORY - {"gemini", "openai", "anthropic", "qwen"}
 if _bad:
-    raise SystemExit(f"FJF_FLAT_HISTORY に知らないプロバイダ: {sorted(_bad)}")
+    raise SystemExit(f"FJF_FLAT_HISTORY names an unknown provider: {sorted(_bad)}")
 
 
 def history_format(provider):
@@ -92,7 +92,7 @@ def history_format(provider):
 
 
 def fold_history(history, last):
-    """履歴を1通に畳む。q1〜pilot_a の gemini が受け取っていた文字列と一字も同じ。"""
+    """Fold history into one message. Character-identical to the string gemini received in q1-pilot_a."""
     parts = [f"【状況】\n{u}\n\n【あなたの回答】\n{a}" for u, a in history]
     parts.append(f"【状況】\n{last}")
     return "\n\n---\n\n".join(parts)
@@ -109,8 +109,8 @@ def make_client(provider, api_key):
         from anthropic import Anthropic
         return Anthropic(api_key=api_key)
     if provider == "qwen":
-        # dashscope はモジュール全体で設定を持つ。クライアント実体がないので
-        # モジュールそのものを返し、api_key は呼び出しごとに渡す。
+        # dashscope keeps configuration module-wide. There is no client instance, so
+        # return the module itself and pass api_key on each call.
         import dashscope
         dashscope.base_http_api_url = PROVIDERS["qwen"]["base_url"]
         dashscope.api_key = api_key
@@ -119,29 +119,29 @@ def make_client(provider, api_key):
 
 
 def clients_for(providers, models=None):
-    """プロバイダ名のリストからクライアントとモデル名を作る。"""
+    """Build clients and model names from a list of provider names."""
     load_dotenv()
     out = {}
     for prov in providers:
         key = os.environ.get(PROVIDERS[prov]["env"])
         if not key:
-            raise SystemExit(f"{PROVIDERS[prov]['env']} が見つかりません。")
+            raise SystemExit(f"{PROVIDERS[prov]['env']} not found.")
         model = (models or {}).get(prov) or PROVIDERS[prov]["default_model"]
         out[prov] = (make_client(prov, key), model)
     return out
 
 
-# ---------------------------------------------------------------- qwen 補助
+# ---------------------------------------------------------------- qwen helper
 
 def _qwen_msg(role, text):
     return {"role": role, "content": [{"text": text}]}
 
 
 def _qwen_call(dashscope, model, messages, effort, max_tokens, usage=None):
-    """MultiModalConversation を1回叩いて本文だけ返す。
+    """Call MultiModalConversation once and return only the text.
 
-    reasoning_effort と thinking_budget は同時に指定できない（エラーになる）。
-    他プロバイダと揃えるため effort 側を使い、budget は渡さない。
+    reasoning_effort and thinking_budget cannot be set together (error).
+    effort is used to match the other providers; budget is not passed.
     """
     r = dashscope.MultiModalConversation.call(
         api_key=dashscope.api_key,
@@ -170,13 +170,13 @@ def _qwen_call(dashscope, model, messages, effort, max_tokens, usage=None):
     return "".join(parts)
 
 
-# ---------------------------------------------------------------- 呼び出し
+# ---------------------------------------------------------------- calls
 
 def _put(usage, r, path):
-    """SDK の usage を一つの形に揃えて usage dict に入れる。
+    """Normalize the SDK usage into one shape and put it in the usage dict.
 
-    呼び出し元がスレッドごとに自分の dict を渡すので競合しない。
-    取れなかった項目は入れない（0 を捏造しない）。
+    Each caller passes its own dict per thread, so there is no contention.
+    Fields that cannot be obtained are omitted (no fabricated 0).
     """
     if usage is None or r is None:
         return
@@ -201,7 +201,7 @@ def _put(usage, r, path):
             if v is not None:
                 usage[dst] = v
                 break
-    # OpenAI は入れ子に置く
+    # OpenAI nests it
     d = g("input_tokens_details") or g("prompt_tokens_details")
     if d is not None:
         c = (d.get("cached_tokens") if isinstance(d, dict)
@@ -220,22 +220,22 @@ def _put(usage, r, path):
 def chat(provider, client, model, system_instruction, history, user_msg,
          effort="medium", max_tokens=32768, cache_prefix=None, usage=None,
          cache_key=None):
-    """history = [(user, assistant), ...] に user_msg を足して1回呼ぶ。
+    """Append user_msg to history = [(user, assistant), ...] and call once.
 
-    history が空なら単発の呼び出しになる。単発と多ターンで経路を分けない。
+    An empty history is a single-turn call. Single and multi-turn share one path.
 
-    cache_prefix は user_msg の前に置く不変部分である。モデルが見る文字列は
-    cache_prefix + user_msg であり、指定しない場合と一字も変わらない。
-    anthropic だけはここに明示のキャッシュ境界を置く必要があるため、
-    別のブロックとして送る。他は接頭辞の自動キャッシュに任せる。
+    cache_prefix is an invariant part placed before user_msg. The string the model sees is
+    cache_prefix + user_msg, character-identical to the call without it.
+    Only anthropic needs an explicit cache boundary here, so it is
+    sent as a separate block. Others rely on automatic prefix caching.
 
-    usage に dict を渡すと、その呼び出しのトークン数を入れて返す。
+    If a dict is passed as usage, the call's token counts are written into it.
     """
     pre = cache_prefix or ""
     flat = provider in FLAT_HISTORY
     if flat:
-        # 畳んだ形は全プロバイダで同じ文字列にする。形の効果とモデルの効果を
-        # 分けるには、刺激の文字列そのものがそろっていなければならない。
+        # The folded form is the same string for every provider. Separating format effects from model
+        # effects requires the stimulus strings themselves to be identical.
         user_msg = fold_history(history, pre + user_msg)
         history, pre = [], ""
     if provider == "anthropic":
@@ -244,8 +244,8 @@ def chat(provider, client, model, system_instruction, history, user_msg,
             msgs.append({"role": "user", "content": u})
             msgs.append({"role": "assistant", "content": a})
         if pre:
-            # 不変部分を別ブロックにして、その末尾にキャッシュ境界を置く。
-            # 連結した文字列と同じものをモデルは読む。
+            # Put the invariant part in its own block with the cache boundary at its end.
+            # The model reads the same string as the concatenation.
             msgs.append({"role": "user", "content": [
                 {"type": "text", "text": pre,
                  "cache_control": {"type": "ephemeral"}},
@@ -253,14 +253,14 @@ def chat(provider, client, model, system_instruction, history, user_msg,
             ]})
         else:
             if msgs:
-                # 履歴の末尾に境界を置く。次のターンがここから乗る。
+                # Boundary at the end of the history; the next turn builds on it.
                 last = msgs[-1]
                 if isinstance(last["content"], str):
                     last["content"] = [
                         {"type": "text", "text": last["content"],
                          "cache_control": {"type": "ephemeral"}}]
             msgs.append({"role": "user", "content": user_msg})
-        # max_tokens が大きいと SDK が非ストリーミングを拒否するため常に stream
+        # With large max_tokens the SDK refuses non-streaming, so always stream
         with client.messages.stream(
             model=model, max_tokens=max_tokens, system=system_instruction,
             messages=msgs, output_config={"effort": effort},
@@ -275,9 +275,9 @@ def chat(provider, client, model, system_instruction, history, user_msg,
         for u, a in history:
             items.append({"role": "user", "content": u})
             items.append({"role": "assistant", "content": a})
-        # GPT-6 世代は明示の境界が無いとキャッシュを使わない。
-        # 境界を置かない限り cached_tokens は 0 のままになる。
-        # prompt_cache_key は経路のヒントであって、スイッチではない。
+        # The GPT-6 generation does not use the cache without an explicit boundary;
+        # cached_tokens stays 0 unless a boundary is set.
+        # prompt_cache_key is a routing hint, not a switch.
         if pre:
             items.append({"role": "user", "content": [
                 {"type": "input_text", "text": pre,
@@ -285,7 +285,7 @@ def chat(provider, client, model, system_instruction, history, user_msg,
                 {"type": "input_text", "text": user_msg},
             ]})
         elif items:
-            # 履歴がある場合は直前までを境界にする。次のターンがそこから乗る。
+            # With history, put the boundary just before the last turn; the next turn builds on it.
             last = items[-2] if len(items) >= 2 else None
             if last is not None and isinstance(last.get("content"), str):
                 last["content"] = [
@@ -304,7 +304,7 @@ def chat(provider, client, model, system_instruction, history, user_msg,
                 **kw,
             )
         except Exception as e:
-            # 黙って落とすと、今度こそ原因が分からなくなる。必ず言う。
+            # Dropping silently would hide the cause again. Always report it.
             flat = []
             for it in items:
                 c = it["content"]
@@ -312,8 +312,8 @@ def chat(provider, client, model, system_instruction, history, user_msg,
                              "content": c if isinstance(c, str)
                              else "".join(x["text"] for x in c)})
             sys.stderr.write(
-                f"[cache] 明示境界つきの送信が通らなかったので平文で再送する。"
-                f"キャッシュは効かない。理由: {type(e).__name__}: {e}\n")
+                f"[cache] sending with an explicit boundary failed; resending as plain text. "
+                f"No caching. Reason: {type(e).__name__}: {e}\n")
             r = client.responses.create(
                 model=model, instructions=system_instruction, input=flat,
                 reasoning={"effort": effort}, max_output_tokens=max_tokens,
@@ -335,7 +335,7 @@ def chat(provider, client, model, system_instruction, history, user_msg,
     if provider == "gemini":
         cfg = {"max_output_tokens": max_tokens, "thinking_level": effort}
         if flat:
-            # user_msg は既に fold_history で畳んである（以前の gemini と同じ文字列）
+            # user_msg is already folded by fold_history (the same string as earlier gemini)
             r = client.interactions.create(
                 model=model, input=user_msg,
                 system_instruction=system_instruction,
@@ -343,8 +343,8 @@ def chat(provider, client, model, system_instruction, history, user_msg,
             )
             _put(usage, r, "gemini_flat")
             return r.output_text
-        # 本物のターン（2026-11-16 の診断 E1）。各要素は type を持つステップで、
-        # 中身は type: text の部品のリスト。
+        # Native turns (diagnostic E1, 2026-11-16). Each element is a step with a type;
+        # its content is a list of type: text parts.
         T = lambda s: [{"type": "text", "text": s}]
         steps = []
         for u, a in history:
@@ -368,17 +368,17 @@ def with_retry(fn, max_retries=7, give_up_on=(
         "does not exist", "invalid_request_error",
         "unpurchased", "accessdenied", "insufficient_quota",
         "billing", "credit balance")):
-    """一時的な失敗は粘り、恒久的な失敗は即諦める。
+    """Persist on transient failures; give up at once on permanent ones.
 
-    待ち時間は 1,2,4,8,16,32,64 秒（+ジッタ）で合計 2分強。クォータの
-    絞りや 5xx は数十秒から数分続くことがあり、短い予算では越えられない。
-    第2問の抽出で DashScope が 2分間 403 を返し、4回・計15秒の retry が
-    全部その窓に収まって 94件が落ちた。
+    Waits are 1,2,4,8,16,32,64 s (+jitter), a little over 2 minutes in total. Quota
+    throttling and 5xx can last from tens of seconds to minutes, beyond a short budget.
+    During q2 extraction DashScope returned 403 for 2 minutes; 4 retries totalling 15 s
+    all fell inside that window and 94 records were lost.
 
-    逆に鍵の誤りやモデル名の誤り、課金が必要な拒否は何回待っても直らない。
-    その種の文面を含むエラーは1回で諦める。2分 × 件数を無駄にしないため。
-    第2問で DashScope が AccessDenied.Unpurchased を返したのは枠の上限で、
-    一時的な絞りではなかった。人が課金するまで直らない種類である。
+    Conversely, a wrong key, a wrong model name or a refusal requiring payment never fixes itself.
+    Errors containing such text are abandoned after one attempt, so as not to waste 2 minutes per record.
+    The AccessDenied.Unpurchased DashScope returned in q2 was a quota limit,
+    not temporary throttling: the kind that stays until someone pays.
     """
     last = None
     for i in range(max_retries):
@@ -392,13 +392,13 @@ def with_retry(fn, max_retries=7, give_up_on=(
                 if any(k in msg for k in ("unpurchased", "accessdenied",
                                           "insufficient_quota", "billing",
                                           "credit balance")):
-                    hint = "（課金・利用枠を確認してください）"
+                    hint = " (check billing / usage quota)"
                 raise RuntimeError(
-                    f"恒久的な失敗と判断、retry しません{hint}: {e}")
+                    f"judged a permanent failure, not retrying{hint}: {e}")
             if i == max_retries - 1:
                 break
             w = (2 ** i) + random.uniform(0, 1)
             log(f"    retry {i+1}/{max_retries} after {w:.1f}s — "
                 f"{type(e).__name__}: {e}")
             time.sleep(w)
-    raise RuntimeError(f"{max_retries}回とも失敗: {last}")
+    raise RuntimeError(f"failed all {max_retries} attempts: {last}")

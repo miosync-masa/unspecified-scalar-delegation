@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-FJF 実行 — シナリオ YAML が刺激を決める
+FJF runner — the scenario YAML decides the stimuli
 
-    設計   scenario_rescue.yaml   どの文をどの順で投げるか
-    測定器 codebook_v1.yaml       どの発話をどの変数で測るか
-    実行   このファイル           読んで回すだけ
-    API    fjf_api.py             プロバイダの差
+    design      scenario_rescue.yaml   which text is sent, in which order
+    instrument  codebook_v1.yaml       which utterance is measured by which variable
+    runner      this file              only reads and runs
+    API         fjf_api.py             provider differences
 
-プロンプトはコードに持たない。YAML を編集すれば送られる文が変わる。
-逆に、YAML を編集しないと何も変わらない。
+No prompt lives in the code. Editing the YAML changes the text that is sent;
+nothing changes unless the YAML is edited.
 
-出力は設計をまたいで同じ形にする。ターンごとに codebook_question が
-入っているので、抽出側は本文の在処を知る必要がない。
+Output has the same shape across designs. Each turn carries its codebook_question,
+so the extractor does not need to know where the text came from.
 
-使い方
+Usage
   python3 fjf_run.py --design q1 --provider gemini openai anthropic qwen
   python3 fjf_run.py --design q2 --provider gemini openai anthropic qwen
   python3 fjf_run.py --design q3 --history results_q2.jsonl
@@ -34,15 +34,15 @@ import yaml
 
 from fjf_api import PROVIDERS, chat, clients_for, log, with_retry, history_format
 
-# q1〜pilot_a で使ってきた履歴の渡し方。gemini は畳んだ形、他は本物のターン。
-# これと違う形で回したときだけ、設計名に印を付けてキーを分ける。
+# History format used from q1 to pilot_a: folded for gemini, native turns for the others.
+# Only runs with a different format get a marker in the design name, so keys stay separate.
 HISTORICAL_FORMAT = {"gemini": "flat", "openai": "native",
                      "anthropic": "native", "qwen": "native"}
 
 
 def design_label(job):
-    """設計名。過去と同じ履歴の形なら素の名前、違えば +flat / +native を付ける。
-    過去のデータのキーは一つも変わらない。"""
+    """Design name. The plain name when the history format matches the past; otherwise +flat / +native.
+    Keys of past data are unchanged."""
     fmt = history_format(job["provider"])
     if fmt == HISTORICAL_FORMAT[job["provider"]]:
         return job["design"]
@@ -55,13 +55,13 @@ CODEBOOK = "codebook_v1.yaml"
 _write_lock = threading.Lock()
 
 
-# ---------------------------------------------------------------- ジョブの展開
+# ---------------------------------------------------------------- job expansion
 
 def variant_sets(sc, turn_ids):
-    """設計のターン列から、変種の組み合わせを列挙する。
+    """Enumerate variant combinations over a design's turn list.
 
-    変種を持つターンが複数あれば直積になる。持たないターンは None。
-    返すのは [(turn_id, variant), ...] のリストの列。
+    Several turns with variants give their product; turns without variants give None.
+    Returns a sequence of lists [(turn_id, variant), ...].
     """
     pools = []
     for tid in turn_ids:
@@ -72,18 +72,18 @@ def variant_sets(sc, turn_ids):
 
 
 def expand(sc, design_id, providers, trials=None, history=None):
-    """設計を 1 ジョブずつに展開する。1 ジョブ = 1 レコード。"""
+    """Expand a design into jobs. One job = one record."""
     d = sc["designs"][design_id]
     n = trials or d.get("trials") or 10
     worlds = d.get("worlds") or ["solo"]
 
-    # ターン列。extra_turns は「同じ履歴に対する別条件」なので、
-    # turns と並べるのではなく、別のジョブ群として扱う。
+    # Turn list. extra_turns are "another condition on the same history", so they
+    # are handled as a separate group of jobs rather than appended to turns.
     groups = [list(d.get("turns") or [])]
     for tid in (d.get("extra_turns") or []):
         groups.append([tid])
 
-    # セル列（orders があれば順序名ごとに、なければ cells をそれぞれ）
+    # Cell list (per order name if orders exist, otherwise each of cells)
     if d.get("orders"):
         cellsets = [(name, [tuple(c) for c in seq])
                     for name, seq in d["orders"].items()]
@@ -96,8 +96,8 @@ def expand(sc, design_id, providers, trials=None, history=None):
     if d.get("history_from"):
         if history is None:
             raise SystemExit(
-                f"設計 {design_id} は {d['history_from']} の履歴を使います。"
-                " --history で出力ファイルを渡してください。")
+                f"design {design_id} uses the history of {d['history_from']}."
+                " Pass its output file with --history.")
         want_order = d.get("history_order")
         for r in history:
             if r.get("error"):
@@ -105,10 +105,10 @@ def expand(sc, design_id, providers, trials=None, history=None):
             if want_order and r.get("order_name") != want_order:
                 continue
             hist_by[(r["provider"], r["trial"])] = r
-        # 履歴は刺激の一部である。先行設計の試行数より多く試行したいとき、
-        # 履歴を巡回させて同じ刺激を複数回サンプリングする。他の設計で
-        # 同じプロンプトを n 回投げるのと同じことで、入れ子（文脈 × 反復）
-        # になる。巡回しないと、先行設計の試行数が後続の上限になる。
+        # History is part of the stimulus. To run more trials than the preceding design had,
+        # cycle through the histories, sampling the same stimulus several times. This is the same
+        # as sending one prompt n times in another design, nested (context x repetition).
+        # Without cycling, the preceding design's trial count caps the later one.
         hist_trials = {}
         for (pv, t) in hist_by:
             hist_trials.setdefault(pv, []).append(t)
@@ -142,15 +142,15 @@ def expand(sc, design_id, providers, trials=None, history=None):
 
 
 def interleave(jobs):
-    """条件の比較を同じ時間帯に置くための並べ替え。
+    """Reordering that puts the compared conditions in the same time window.
 
-    条件をまとめて順に流すと、先に回した条件と後に回した条件のあいだに
-    時間の差が入る。配信側の更新や混雑が条件の差に化ける（q2 の形の比較で、
-    同じ本物のターンどうしが 11 日を隔てて動いたのが実例）。
+    Running conditions as blocks in sequence inserts a time gap between earlier and later
+    conditions; provider updates or load turn into condition differences (in the q2 format
+    comparison, the same native-turn condition moved across an 11-day gap).
 
-    試行番号ごとに1ブロックを作り、ブロックの中に全被験者 × 全条件を並べる。
-    ブロック内の条件の順は試行番号で回転させ、毎回同じ条件が先頭に来ないようにする。
-    乱数は使わないので並びは再現できる。ジョブのキーは変わらないので再開にも影響しない。
+    One block per trial number, containing every subject x every condition.
+    The order of conditions within a block rotates with the trial number, so the same condition is not always first.
+    No randomness, so the order is reproducible. Job keys are unchanged, so resuming is unaffected.
     """
     def sig(j):
         return (j["design"], "+".join(f"{t}:{v}" for t, v in j["combo"]), j["order_name"] or "",
@@ -174,9 +174,9 @@ def interleave(jobs):
 
 
 def chain_src(src, replicate):
-    """履歴の由来を連鎖で持つ。履歴の履歴まで辿れないと、
-    入れ子が3段（q4 → q3_post → q2）になったとき出発点が失われる。
-    via は親より手前の由来を、近い順に並べたものである。"""
+    """Keep the provenance of the history as a chain. Without tracing the history's own history,
+    the starting point is lost when nesting reaches 3 levels (q4 -> q3_post -> q2).
+    via lists the provenance before the parent, nearest first."""
     via = []
     node = src.get("history_src")
     seen = 0
@@ -197,7 +197,7 @@ def chain_src(src, replicate):
 
 
 def job_key(job):
-    """再開のための一意キー。"""
+    """Unique key for resuming."""
     return (design_label(job), job["provider"], job["world"], job["order_name"],
             "+".join("".join(c) for c in job["cells"]),
             "+".join(f"{t}:{v}" for t, v in job["combo"]),
@@ -215,7 +215,7 @@ def job_tag(job):
     return "|".join(parts)
 
 
-# ---------------------------------------------------------------- 実行
+# ---------------------------------------------------------------- execution
 
 def append_record(path, rec):
     with _write_lock:
@@ -252,7 +252,7 @@ def run_one(sc, cb_ver, job, client, model, effort, max_tokens, out_path):
 
     src = job["history_src"]
     if src:
-        # 履歴は逐語でそのまま文脈に積む。要約しない。
+        # History is stacked into the context verbatim. Never summarized.
         for t in src["turns"]:
             history.append((t["prompt"], t["response"]))
             turns_out.append({**t, "from_history": True})
@@ -272,7 +272,7 @@ def run_one(sc, cb_ver, job, client, model, effort, max_tokens, out_path):
                                cell=cell, variant=variant, qn=qn)
             if prompt is None:
                 continue
-            # usage は成功した呼び出しの値で上書きされる（_put は成功後にしか書かない）
+            # usage is overwritten by the successful call's values (_put writes only after success)
             u = {}
             ans = with_retry(lambda p=prompt: chat(
                 prov, client, model, sys_inst, history, p, effort, max_tokens,
@@ -324,32 +324,32 @@ def run_one(sc, cb_ver, job, client, model, effort, max_tokens, out_path):
 # ---------------------------------------------------------------- main
 
 def main():
-    p = argparse.ArgumentParser(description="FJF 実行（シナリオ YAML 駆動）")
+    p = argparse.ArgumentParser(description="FJF runner (driven by the scenario YAML)")
     p.add_argument("--scenario", default="scenario_rescue.yaml")
     p.add_argument("--codebook", default=CODEBOOK)
     p.add_argument("--design", required=True, nargs="+",
-                   help="複数を渡すと、全設計のジョブを一つの実行に混ぜて交互に並べる（同じ日・同じ時間帯で比べるため）")
+                   help="with several designs, mix all their jobs into one run, interleaved (to compare on the same day and time window)")
     p.add_argument("--provider", nargs="+", default=list(PROVIDERS),
                    choices=list(PROVIDERS))
     p.add_argument("--model", nargs="+", default=None,
-                   metavar="PROV=MODEL", help="既定モデルの上書き")
+                   metavar="PROV=MODEL", help="override the default model")
     p.add_argument("--trials", type=int, default=None)
-    p.add_argument("--history", default=None, help="履歴を使う設計で必須")
+    p.add_argument("--history", default=None, help="required for designs that use a history")
     p.add_argument("--effort", default="medium")
     p.add_argument("--max-tokens", type=int, default=32768)
     p.add_argument("--out", default=None)
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--order", choices=["interleave", "grouped"], default="interleave",
-                   help="interleave: 試行番号ごとのブロックに全条件・全被験者を並べる（既定）。"
-                        " grouped: 以前の並び（被験者→条件→試行）")
+                   help="interleave: one block per trial number with every condition and subject (default)."
+                        " grouped: the earlier order (subject -> condition -> trial)")
     args = p.parse_args()
 
     sc = load_scenario(args.scenario)
     bad = [d for d in args.design if d not in sc["designs"]]
     if bad:
-        sys.exit(f"設計 {bad} がありません。"
-                 f" 候補: {sorted(sc['designs'])}")
+        sys.exit(f"design {bad} does not exist."
+                 f" candidates: {sorted(sc['designs'])}")
     try:
         cb_ver = yaml.safe_load(open(args.codebook, encoding="utf-8"))["version"]
     except Exception:
@@ -366,7 +366,7 @@ def main():
 
     print(f"scenario {sc['scenario']} v{sc['version']} / codebook v{cb_ver}")
     for d in args.design:
-        print(f"設計 {d}: {sc['designs'][d].get('note','')}")
+        print(f"design {d}: {sc['designs'][d].get('note','')}")
 
     if args.dry_run:
         seen = set()
@@ -380,7 +380,7 @@ def main():
             print(f"\n{'#'*64}\n  {job_tag(job)}\n{'#'*64}")
             print(f"[system] {system_text(sc, job['world'])}\n")
             if job["history_src"]:
-                print("[履歴] 先行設計の応答を逐語で文脈に積む\n")
+                print("[history] stacking the preceding design's responses verbatim into the context\n")
             cells = list(job["cells"]); ci = 0; qn = 0
             for turn_id, variant in job["combo"]:
                 turn = sc["turns"][turn_id]
@@ -395,11 +395,11 @@ def main():
                 print(f"--- turn {turn_id}"
                       f"{'/'+variant if variant else ''} -> {vq}")
                 print(txt, "\n")
-        print(f"\nジョブ {len(jobs)} 件（試行をまとめると上の {len(seen)} 種）")
+        print(f"\n{len(jobs)} jobs ({len(seen)} kinds above, collapsing trials)")
         return
 
     if not jobs:
-        sys.exit("ジョブが 0 件です。履歴や設計を確認してください。")
+        sys.exit("0 jobs. Check the history and the design.")
 
     models = {}
     for spec in (args.model or []):
@@ -412,10 +412,10 @@ def main():
     todo = [j for j in jobs if job_key(j) not in done]
 
     calls = sum(len([t for t, _ in j["combo"]]) for j in todo)
-    print(f"ジョブ {len(jobs)} 件 / 済み {len(jobs)-len(todo)} 件 / "
-          f"実行 {len(todo)} 件")
-    print(f"API 呼び出し 約 {calls} 回（並列 {args.workers}）")
-    print(f"出力 {out_path}（再開可）\n")
+    print(f"{len(jobs)} jobs / {len(jobs)-len(todo)} done / "
+          f"{len(todo)} to run")
+    print(f"about {calls} API calls ({args.workers} workers)")
+    print(f"output {out_path} (resumable)\n")
     if not todo:
         return
 
@@ -427,7 +427,7 @@ def main():
         for f in as_completed(futs):
             if f.result():
                 ok += 1
-    print(f"\n完了 {ok}/{len(todo)}")
+    print(f"\ndone {ok}/{len(todo)}")
 
 
 if __name__ == "__main__":

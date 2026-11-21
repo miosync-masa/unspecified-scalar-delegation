@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-シナリオ YAML を読んでプロンプトを組み立てる + 既存スクリプトとの一致検算
+Read the scenario YAML and build prompts, plus a check against the retired scripts
 
-刺激は scenario_rescue.yaml、測定器は codebook_v1.yaml が持つ。このモジュールは
-前者を読んで文を組み立てるだけの器である。
+The stimuli live in scenario_rescue.yaml and the instrument in codebook_v1.yaml. This module
+only reads the former and builds the text.
 
-退役した fjf_q1〜q4 はプロンプトをコードに埋め込んでいた。差し替える前に、
-YAML から組んだ文が既存の文と一字一句一致することを確かめる。一致しなければ
-設計が足りていないので、そこで止まる。
+The retired fjf_q1-q4 embedded prompts in code. Before replacing them, we checked that the text
+built from the YAML matches the old text character for character. A mismatch means the design
+is incomplete, and the check stops there.
 
-使い方
-  python3 fjf_scenario.py --verify          既存スクリプトとの一致を検算
-  python3 fjf_scenario.py --show q1         設計 q1 のプロンプトを出す
-  python3 fjf_scenario.py --lint            刺激側の点検（字数の偏り・語の混入）
+Usage
+  python3 fjf_scenario.py --verify          check identity with the retired scripts
+  python3 fjf_scenario.py --show q1         print the prompts of design q1
+  python3 fjf_scenario.py --lint            lint the stimuli (length imbalance, leaking words)
 """
 
 import argparse
@@ -29,7 +29,7 @@ def load(path=SCENARIO):
         return yaml.safe_load(f)
 
 
-# ---------------------------------------------------------------- 組み立て
+# ---------------------------------------------------------------- building
 
 def system_text(sc, world):
     w = sc["worlds"][world]
@@ -38,12 +38,12 @@ def system_text(sc, world):
 
 def turn_text(sc, turn_id, world="solo", cell=None, variant=None,
               first=None, second=None, qn=None):
-    """ターン1つ分の本文を返す。"""
+    """Return the text of one turn."""
     turn = sc["turns"][turn_id]
 
     if "variants" in turn:
         if variant is None:
-            raise ValueError(f"{turn_id} には variant が必要")
+            raise ValueError(f"{turn_id} needs a variant")
         spec = turn["variants"][variant]
         tname = spec["template"]
     else:
@@ -54,44 +54,44 @@ def turn_text(sc, turn_id, world="solo", cell=None, variant=None,
 
     body = sc["templates"][tname]["body"]
 
-    # スロット（北と南）
+    # slots (north and south)
     if "{north}" in body:
         if cell is None:
-            raise ValueError(f"{turn_id} には cell が必要")
+            raise ValueError(f"{turn_id} needs a cell")
         n, s = cell
         body = body.replace("{north}", sc["slots"]["north"][n]["text"])
         body = body.replace("{south}", sc["slots"]["south"][s]["text"])
 
-    # 質問番号（連番で提示する設計でのみ使う）
+    # question number (only for designs presented with numbering)
     if "{qn}" in body:
         if qn is None:
-            raise ValueError(f"{turn_id} には qn が必要")
+            raise ValueError(f"{turn_id} needs qn")
         body = body.replace("{qn}", str(qn))
 
-    # world 固有の段落
+    # world-specific paragraph
     if "{extra}" in body:
         extra = sc["worlds"][world].get("extra")
         body = body.replace("{extra}", extra if extra is not None else "")
 
-    # 追及の主張
+    # claim for the audit
     if "{claim}" in body:
         cl = sc["claims"][spec["claim"]]
         text = cl["text"]
         if cl.get("requires_flip"):
             if first is None or second is None:
-                raise ValueError("true 系の claim には first/second が必要")
+                raise ValueError("true-type claims need first/second")
             if first == second or "?" in (first, second):
-                return None          # 反転していない履歴には作れない
+                return None          # cannot be built for a history without a reversal
             labels = cl["labels"]
             text = text.replace("{first_label}", labels[first])
             text = text.replace("{second_label}", labels[second])
         body = body.replace("{claim}", text)
 
-    # 共通の場面文（同じ場面を複数のターンで逐語のまま使う設計でのみ）
+    # shared scene text (only for designs reusing one scene verbatim across turns)
     if "{scene}" in body:
         body = body.replace("{scene}", sc["templates"]["scene"]["body"])
 
-    # 伝令の到着と命令
+    # messenger arrival and order
     if "{arrival}" in body:
         body = body.replace("{arrival}", sc["arrivals"][spec["arrival"]])
     if "{order}" in body:
@@ -100,17 +100,17 @@ def turn_text(sc, turn_id, world="solo", cell=None, variant=None,
     return body
 
 
-# ---------------------------------------------------------------- 検算
+# ---------------------------------------------------------------- verification
 
 def verify(sc):
-    """既存スクリプトのプロンプトと一字一句一致するか。"""
-    # 旧スクリプトは superseded/ に退役済み。実行経路はもう通らない。
-    # ここだけが参照する（照合の相手として）。
+    """Does the text match the retired scripts' prompts character for character?"""
+    # The old scripts are retired to superseded/ and no longer on any execution path.
+    # Only this check refers to them (as the reference to compare against).
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "superseded"))
     try:
         import fjf_q1, fjf_q2, fjf_q3, fjf_q4
     except ImportError as e:
-        print(f"照合相手が見つかりません（superseded/ を確認）: {e}")
+        print(f"reference scripts not found (check superseded/): {e}")
         return
 
     ok = bad = 0
@@ -123,23 +123,23 @@ def verify(sc):
         bad += 1
         print(f"  ✗ {label}")
         if got is None:
-            print("      YAML 側が None を返した")
+            print("      the YAML side returned None")
             return
         for i, (a, b) in enumerate(zip(got, want)):
             if a != b:
-                print(f"      {i} 文字目から違う")
+                print(f"      differs from character {i}")
                 print(f"      YAML : ...{got[max(0,i-25):i+25]!r}")
-                print(f"      既存 : ...{want[max(0,i-25):i+25]!r}")
+                print(f"      old  : ...{want[max(0,i-25):i+25]!r}")
                 break
         else:
-            print(f"      長さが違う: YAML {len(got)} / 既存 {len(want)}")
+            print(f"      lengths differ: YAML {len(got)} / old {len(want)}")
 
-    print("=== 系の指示 ===")
+    print("=== system instructions ===")
     for world in fjf_q1.SYSTEM_INSTRUCTION:
         check(f"system[{world}]", system_text(sc, world),
               fjf_q1.SYSTEM_INSTRUCTION[world])
 
-    print("=== 判断のターン（全 world × 全セル）===")
+    print("=== decision turns (all worlds x all cells) ===")
     for world in fjf_q1.SYSTEM_INSTRUCTION:
         for n in sc["slots"]["north"]:
             for s in sc["slots"]["south"]:
@@ -147,15 +147,15 @@ def verify(sc):
                       turn_text(sc, "decision", world=world, cell=(n, s)),
                       fjf_q1.build_prompt(n, s, "none", world))
 
-    print("=== 整合性のターン ===")
+    print("=== consistency turn ===")
     check("consistency", turn_text(sc, "consistency"), fjf_q2.CONSISTENCY_PROMPT)
 
-    print("=== 日没後 ===")
+    print("=== after sunset ===")
     check("sunset", turn_text(sc, "sunset"), fjf_q3._STATIC_PROBES["none"])
     check("sunset_self", turn_text(sc, "sunset_self"), fjf_q3._STATIC_PROBES["self"])
     check("sunset(q4)", turn_text(sc, "sunset"), fjf_q4.SUNSET_PROMPT)
 
-    print("=== 記録の追及 ===")
+    print("=== record audit ===")
     for v in ("neutral_false", "adversary_false"):
         check(f"audit[{v}]", turn_text(sc, "audit", variant=v),
               fjf_q3._STATIC_PROBES[v])
@@ -163,42 +163,42 @@ def verify(sc):
         check(f"audit[{v}]", turn_text(sc, "audit", variant=v),
               fjf_q3._STATIC_PROBES[v])
 
-    print("=== 二人目の伝令 ===")
+    print("=== second messenger ===")
     for v in fjf_q4.PROBES:
         check(f"order[{v}]", turn_text(sc, "order", variant=v), fjf_q4.PROBES[v])
 
-    print(f"\n一致 {ok} / 不一致 {bad}")
+    print(f"\nmatch {ok} / mismatch {bad}")
     return bad == 0
 
 
-# ---------------------------------------------------------------- 点検
+# ---------------------------------------------------------------- lint
 
 def mesh(sc, cb_path="codebook_v1.yaml"):
-    """ターンが引き出すものと変数が必要とするものの噛み合いを検査する。
+    """Check the fit between what a turn elicits and what a variable requires.
 
-    パイプラインは 変数設計 → シナリオの決定と聞き方 → 応答 → 測定器
-    の順に流れる。一致率が上がらないとき下流だけを見ると、上流の
-    噛み合わせの誤りを追えない。これは上流の検査である（codebook I19）。
+    The pipeline runs variable design -> scenario and question wording -> response -> instrument.
+    When agreement does not improve, looking only downstream cannot trace an upstream
+    mismatch. This is the upstream check (codebook I19).
 
-    3段で判定する。elicits と交わればOK。permits だけなら危険（出るかが
-    被験者の語り方次第）。どちらとも交わらなければ設計の誤り。
+    Three levels: intersecting elicits is OK; only permits is risky (whether it appears
+    depends on how the subject narrates); intersecting neither is a design error.
     """
     cb = yaml.safe_load(open(cb_path, encoding="utf-8"))
-    print(f"\n=== 噛み合い検査（codebook v{cb['version']}）===")
+    print(f"\n=== fit check (codebook v{cb['version']}) ===")
     out, risk, intended = [], [], []
     for tid, t in sc["turns"].items():
         el = set(t.get("elicits") or [])
         pm = set(t.get("permits") or [])
         q = t.get("codebook_question")
         if not el:
-            out.append((tid, None, "elicits が宣言されていない"))
+            out.append((tid, None, "elicits not declared"))
             continue
         for name, spec in cb["variables"].items():
             if q not in spec.get("questions", []):
                 continue
             req = set(spec.get("requires") or [])
             if not req:
-                out.append((tid, name, "requires が宣言されていない"))
+                out.append((tid, name, "requires not declared"))
             elif req & el:
                 continue
             elif req & pm:
@@ -207,22 +207,22 @@ def mesh(sc, cb_path="codebook_v1.yaml"):
                 intended.append((tid, name, sorted(req), sorted(el)))
             else:
                 out.append((tid, name,
-                            f"requires {sorted(req)} が elicits {sorted(el)} / "
-                            f"permits {sorted(pm)} のどちらとも交わらない"))
+                            f"requires {sorted(req)} intersects neither elicits {sorted(el)} / "
+                            f"permits {sorted(pm)}"))
     if out:
-        print(f"  ★ 設計の誤り {len(out)} 件 — 刺激がその情報を引き出していない")
+        print(f"  ★ {len(out)} design errors — the stimulus does not elicit that information")
         for tid, name, why in out:
             print(f"    turn {tid}" + (f" / {name}" if name else "") + f": {why}")
     else:
-        print("  設計の誤りなし")
+        print("  no design errors")
     if risk:
-        print(f"\n  ! 危険 {len(risk)} 件 — permits にはあるが直接は尋ねていない。"
-              "出るかが語り方次第なので実測で確かめる")
+        print(f"\n  ! {len(risk)} risky — in permits but not asked directly. "
+              "Whether it appears depends on narration, so check empirically")
         for tid, name, req, el, pm in risk:
             print(f"    turn {tid} / {name}: requires {req}（elicits {el}）")
     if intended:
-        print(f"\n  ○ 意図された不一致 {len(intended)} 件 — 自発性を測るために"
-              "引き出さないターンで測っている（mismatch_note あり）")
+        print(f"\n  ○ {len(intended)} intended mismatches — measured on a turn that does not elicit it, "
+              "to measure spontaneity (mismatch_note present)")
         for tid, name, req, el in intended:
             print(f"    turn {tid} / {name}: requires {req}（elicits {el}）")
     byq = {}
@@ -231,67 +231,67 @@ def mesh(sc, cb_path="codebook_v1.yaml"):
             (tid, tuple(sorted(t.get("elicits") or []))))
     for q, lst in byq.items():
         if len({e for _, e in lst}) > 1:
-            print(f"\n  ★ 変数群 {q} に直接尋ねるものが違うターンが混在。"
-                  "群を分けること")
+            print(f"\n  ★ variable group {q} mixes turns that ask for different things directly. "
+                  "Split the group")
             for tid, e in lst:
                 print(f"      {tid}: elicits {list(e)}")
     return out, risk, intended
 
 
 def lint(sc):
-    print("=== スロットの字数 ===")
+    print("=== slot lengths ===")
     for side in ("north", "south"):
         print(f"  {side}")
         for k, v in sc["slots"][side].items():
             actual = len(v["text"])
-            flag = "" if actual == v.get("chars") else f"  !! chars={v.get('chars')} だが実際は {actual}"
-            print(f"    {k:3s} {actual:3d}字  {v['text']}{flag}")
+            flag = "" if actual == v.get("chars") else f"  !! chars={v.get('chars')} but actually {actual}"
+            print(f"    {k:3s} {actual:3d} chars  {v['text']}{flag}")
 
-    print("\n=== 南スロットの字数差（属性以外の交絡）===")
+    print("\n=== length differences of south slots (confounds other than the attribute) ===")
     s = sc["slots"]["south"]
     base = len(s["A"]["text"])
     for k, v in s.items():
         d = len(v["text"]) - base
-        mark = "  ← A との差が大きい" if abs(d) >= 7 else ""
-        print(f"    {k:3s} A比 {d:+3d}字  guilt={v.get('guilt')}{mark}")
-    print("    字数が揃っていない比較は、属性の効果と記述量の効果を分離できない。")
-    print("    designs.q1_length_control が A2 を入れてその切り分けをする。")
+        mark = "  <- large difference from A" if abs(d) >= 7 else ""
+        print(f"    {k:3s} vs A {d:+3d} chars  guilt={v.get('guilt')}{mark}")
+    print("    Comparisons with unequal lengths cannot separate the attribute effect from the amount of description.")
+    print("    designs.q1_length_control adds A2 to separate them.")
 
-    print("\n=== 追及文が刺激側の語を使っていないか ===")
-    # 課題文に出る語を追及文が引用していると、I3（プロンプト語の混入）に触れる
+    print("\n=== do audit claims reuse words from the stimulus? ===")
+    # An audit claim quoting words from the task text touches I3 (prompt words leaking)
     dec = turn_text(sc, "decision", world="solo", cell=("N", "A"))
     for cid, cl in sc["claims"].items():
         shared = [w for w in ("北の塔", "南の塔", "伝令", "日没", "国王陛下")
                   if w in cl["text"] and w in dec]
         if shared:
-            print(f"    {cid}: 課題文と共通の語 {shared}")
-    print("    追及文が課題文の語を含むのは自然だが、これらの語を")
-    print("    判定の手がかりに使ってはならない（codebook I3）。")
+            print(f"    {cid}: words shared with the task text {shared}")
+    print("    Audit claims naturally contain task words, but these words")
+    print("    must not be used as cues for judgment (codebook I3).")
 
-    print("\n=== ターンと測定器の対応 ===")
+    print("\n=== turns vs instrument ===")
     try:
         cb = yaml.safe_load(open("codebook_v1.yaml", encoding="utf-8"))
         known = {q for v in cb["variables"].values()
                  for q in v.get("questions", [])}
     except Exception as e:
-        print(f"    codebook_v1.yaml を読めなかった: {e}")
+        print(f"    could not read codebook_v1.yaml: {e}")
         known = set()
     for tid, t in sc["turns"].items():
         q = t.get("codebook_question")
-        mark = "" if (not known or q in known) else "  !! コードブックに変数がない"
+        mark = "" if (not known or q in known) else "  !! no such variable in the codebook"
         print(f"    {tid:14s} -> {q}{mark}")
     if known:
         missing = sorted(known - {t.get("codebook_question")
                                  for t in sc["turns"].values()})
         if missing:
-            print(f"    どのターンからも使われていない変数群: {missing}")
+            print(f"    variable groups used by no turn: {missing}")
 
 
 def check(sc):
-    """シナリオ自身の構造を検査する。参照の切れ、未使用の定義、設計の不備。
+    """Check the scenario's own structure: broken references, unused definitions, design defects.
 
-    --verify は「既存コードと同じ文が出るか」を見る。こちらは
-    「設計として筋が通っているか」を見る。別の検査である。
+    --verify checks "does it produce the same text as the old code"; this checks
+    "is the design coherent". They are separate checks.
     """
     err, warn = [], []
 
@@ -307,22 +307,22 @@ def check(sc):
     for w, spec in W.items():
         for k in spec["system"]:
             if k not in sc["systems"]:
-                err.append(f"worlds.{w}.system が未定義の systems.{k} を参照")
+                err.append(f"worlds.{w}.system refers to undefined systems.{k}")
 
     # --- turns
     for tid, t in T.items():
         qs = t.get("codebook_question")
         if not qs:
-            err.append(f"turns.{tid} に codebook_question がない")
+            err.append(f"turns.{tid} has no codebook_question")
         variants = t.get("variants")
         specs = list(variants.values()) if variants else [t]
         for spec in specs:
             tn = spec.get("template")
             if tn is None:
-                err.append(f"turns.{tid} に template がない")
+                err.append(f"turns.{tid} has no template")
                 continue
             if tn not in TP:
-                err.append(f"turns.{tid} が未定義の templates.{tn} を参照")
+                err.append(f"turns.{tid} refers to undefined templates.{tn}")
             else:
                 used_tp.add(tn)
             for key, pool, bag, label in (("claim", CL, used_cl, "claims"),
@@ -330,88 +330,88 @@ def check(sc):
                                           ("order", OR, used_or, "orders")):
                 if key in spec:
                     if spec[key] not in pool:
-                        err.append(f"turns.{tid} が未定義の {label}.{spec[key]} を参照")
+                        err.append(f"turns.{tid} refers to undefined {label}.{spec[key]}")
                     else:
                         bag.add(spec[key])
         for w, tn in (t.get("template_by_world") or {}).items():
             if w not in W:
-                err.append(f"turns.{tid}.template_by_world が未定義の world {w} を参照")
+                err.append(f"turns.{tid}.template_by_world refers to undefined world {w}")
             if tn not in TP:
-                err.append(f"turns.{tid}.template_by_world が未定義の template {tn} を参照")
+                err.append(f"turns.{tid}.template_by_world refers to undefined template {tn}")
             else:
                 used_tp.add(tn)
-        # 文型が要求するプレースホルダが埋まるか
+        # are the placeholders the template requires filled?
         for spec in specs:
             tn = spec.get("template")
             if tn not in TP:
                 continue
             body = TP[tn]["body"]
             if "{claim}" in body and "claim" not in spec:
-                err.append(f"turns.{tid} の {tn} は claim を要求するが指定がない")
+                err.append(f"turns.{tid}: {tn} requires claim but none is given")
             if "{arrival}" in body and "arrival" not in spec:
-                err.append(f"turns.{tid} の {tn} は arrival を要求するが指定がない")
+                err.append(f"turns.{tid}: {tn} requires arrival but none is given")
             if "{order}" in body and "order" not in spec:
-                err.append(f"turns.{tid} の {tn} は order を要求するが指定がない")
+                err.append(f"turns.{tid}: {tn} requires order but none is given")
             if "{north}" in body and not t.get("slots"):
-                err.append(f"turns.{tid} の {tn} はスロットを要求するが slots の宣言がない")
+                err.append(f"turns.{tid}: {tn} requires slots but no slots are declared")
 
     # --- designs
     for did, d in D.items():
         tl = list(d.get("turns") or []) + list(d.get("extra_turns") or [])
         if not tl:
-            err.append(f"designs.{did} に turns がない")
+            err.append(f"designs.{did} has no turns")
         for tid in tl:
             if tid not in T:
-                err.append(f"designs.{did} が未定義の turns.{tid} を参照")
+                err.append(f"designs.{did} refers to undefined turns.{tid}")
             else:
                 used_t.add(tid)
         for w in d.get("worlds") or []:
             if w not in W:
-                err.append(f"designs.{did} が未定義の world {w} を参照")
+                err.append(f"designs.{did} refers to undefined world {w}")
             used_w.add(w)
-        # セル
+        # cells
         cells = list(d.get("cells") or [])
         for seq in (d.get("orders") or {}).values():
             cells += [list(c) for c in seq]
         for c in cells:
             if len(c) != 2:
-                err.append(f"designs.{did} のセル {c} が2要素でない")
+                err.append(f"designs.{did}: cell {c} does not have 2 elements")
                 continue
             n, s_ = c
             if n not in SL["north"]:
-                err.append(f"designs.{did} が未定義の north スロット {n} を参照")
+                err.append(f"designs.{did} refers to undefined north slot {n}")
             else:
                 used_slot["north"].add(n)
             if s_ not in SL["south"]:
-                err.append(f"designs.{did} が未定義の south スロット {s_} を参照")
+                err.append(f"designs.{did} refers to undefined south slot {s_}")
             else:
                 used_slot["south"].add(s_)
-        # 履歴の参照
+        # history references
         hf = d.get("history_from")
         if hf:
             if hf not in D:
-                err.append(f"designs.{did}.history_from が未定義の設計 {hf} を参照")
+                err.append(f"designs.{did}.history_from refers to undefined design {hf}")
             else:
                 ho = d.get("history_order")
                 src_orders = (D[hf].get("orders") or {})
                 if ho and ho not in src_orders:
-                    err.append(f"designs.{did}.history_order={ho} が {hf} の orders にない")
+                    err.append(f"designs.{did}.history_order={ho} is not among the orders of {hf}")
                 if not ho and src_orders:
-                    warn.append(f"designs.{did} は {hf} の履歴を使うが history_order 未指定")
-        # スロットを要求するターンがあるのにセルがない
+                    warn.append(f"designs.{did} uses the history of {hf} but history_order is not set")
+        # a turn requires slots but the design has no cells
         needs_cell = any("slots" in T.get(tid, {}) for tid in tl)
         if needs_cell and not cells:
-            err.append(f"designs.{did} はスロットを要す turn を含むがセルが無い")
+            err.append(f"designs.{did} contains a turn needing slots but has no cells")
         if not needs_cell and cells:
-            warn.append(f"designs.{did} はセルを持つがスロットを使う turn が無い")
+            warn.append(f"designs.{did} has cells but no turn uses slots")
         if needs_cell and not (d.get("worlds")):
-            warn.append(f"designs.{did} に worlds の指定がない（既定 solo で動く）")
-        # 同じ turn を複数回使う設計は、何回目かの区別が要る
+            warn.append(f"designs.{did} has no worlds (runs with the default solo)")
+        # a design using one turn several times needs to tell the occurrences apart
         for tid in set(tl):
             if tl.count(tid) > 1 and not d.get("orders"):
-                warn.append(f"designs.{did} は {tid} を {tl.count(tid)} 回使うが orders が無く順序が決まらない")
+                warn.append(f"designs.{did} uses {tid} {tl.count(tid)} times but has no orders, so the order is undetermined")
 
-    # --- 未使用の定義
+    # --- unused definitions
     for label, defined, used in (("templates", set(TP), used_tp),
                                  ("claims", set(CL), used_cl),
                                  ("arrivals", set(AR), used_ar),
@@ -420,13 +420,13 @@ def check(sc):
                                  ("worlds", set(W), used_w)):
         unused = sorted(defined - used)
         if unused:
-            warn.append(f"どの設計からも使われていない {label}: {unused}")
+            warn.append(f"{label} used by no design: {unused}")
     for side in ("north", "south"):
         unused = sorted(set(SL[side]) - used_slot[side])
         if unused:
-            warn.append(f"どの設計からも使われていない {side} スロット: {unused}")
+            warn.append(f"{side} slots used by no design: {unused}")
 
-    # --- 実データとの突き合わせ
+    # --- comparison with the actual data
     import glob, json as _json, collections as _c
     seen = _c.defaultdict(set)
     for f in sorted(glob.glob("results*.jsonl")):
@@ -445,23 +445,23 @@ def check(sc):
             if r.get("world"):
                 seen["worlds"].add(r["world"])
 
-    print("=== 構造検査 ===")
+    print("=== structure check ===")
     if not err:
-        print("  参照の切れ・不備なし")
+        print("  no broken references or defects")
     for e in err:
         print(f"  ✗ {e}")
     print()
-    print("=== 注意 ===")
+    print("=== warnings ===")
     if not warn:
-        print("  なし")
+        print("  none")
     for w in warn:
         print(f"  ! {w}")
     print()
-    print("=== 手元のデータに現れる条件 ===")
+    print("=== conditions present in local data ===")
     for k in ("worlds", "cells", "orders", "probes"):
         if seen[k]:
             print(f"  {k}: {sorted(seen[k])}")
-    # シナリオに無い条件がデータにある＝設計が実績を表せていない
+    # a condition in the data but not in the scenario = the design does not describe what was run
     sc_cells = set()
     for d in D.values():
         for c in (d.get("cells") or []):
@@ -471,20 +471,20 @@ def check(sc):
                 sc_cells.add("".join(c))
     miss = sorted(seen["cells"] - sc_cells)
     if miss:
-        print(f"  ! データにあるがどの設計にも無いセル: {miss}")
+        print(f"  ! cells in the data but in no design: {miss}")
     sc_orders = {o for d in D.values() for o in (d.get("orders") or {})}
     miss = sorted(seen["orders"] - sc_orders)
     if miss:
-        print(f"  ! データにあるがどの設計にも無い順序: {miss}")
+        print(f"  ! orders in the data but in no design: {miss}")
     sc_probes = {v for t in T.values() for v in (t.get("variants") or {})}
     sc_probes |= {tid for tid in T}
     miss = sorted(seen["probes"] - sc_probes)
     if miss:
-        print(f"  ! データにあるがシナリオに無い probe: {miss}")
+        print(f"  ! probes in the data but not in the scenario: {miss}")
     sc_worlds = set(W)
     miss = sorted(seen["worlds"] - sc_worlds)
     if miss:
-        print(f"  ! データにあるがシナリオに無い world: {miss}")
+        print(f"  ! worlds in the data but not in the scenario: {miss}")
     return not err
 
 
@@ -511,7 +511,7 @@ def show(sc, design):
                 print(f"  {tid} / {v}  -> {t['codebook_question']}")
                 print("=" * 60)
                 txt = turn_text(sc, tid, variant=v, first="南", second="北")
-                print(txt if txt is not None else "（この組み合わせは成立しない）")
+                print(txt if txt is not None else "(this combination is not possible)")
                 print()
         elif tid != "decision":
             print("=" * 60)
@@ -522,14 +522,14 @@ def show(sc, design):
 
 
 def main():
-    p = argparse.ArgumentParser(description="FJF シナリオ")
+    p = argparse.ArgumentParser(description="FJF scenario")
     p.add_argument("--scenario", default=SCENARIO)
-    p.add_argument("--verify", action="store_true", help="既存スクリプトと一致するか")
-    p.add_argument("--check", action="store_true", help="シナリオの構造検査")
+    p.add_argument("--verify", action="store_true", help="does it match the retired scripts?")
+    p.add_argument("--check", action="store_true", help="structure check of the scenario")
     p.add_argument("--mesh", action="store_true",
-                   help="ターンの elicits と変数の requires の噛み合いを検査")
-    p.add_argument("--lint", action="store_true", help="刺激側の点検")
-    p.add_argument("--show", metavar="DESIGN", help="設計のプロンプトを出す")
+                   help="check the fit between turn elicits and variable requires")
+    p.add_argument("--lint", action="store_true", help="lint the stimuli")
+    p.add_argument("--show", metavar="DESIGN", help="print the prompts of a design")
     args = p.parse_args()
 
     sc = load(args.scenario)
@@ -549,7 +549,7 @@ def main():
     if args.show:
         show(sc, args.show)
         return
-    print("--check / --verify / --lint / --show DESIGN のいずれかを指定してください。")
+    print("Specify one of --check / --verify / --lint / --show DESIGN.")
 
 
 if __name__ == "__main__":

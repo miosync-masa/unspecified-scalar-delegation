@@ -1,10 +1,10 @@
 #!/bin/sh
-# q2 の「履歴の渡し方」追加データを抽出する。自己採点を避けた完全交差。
-# 抽出では FJF_FLAT_HISTORY を付けないこと（コーダーへの送り方は過去と同じ既定にする）。
+# Extract the additional q2 data on history format. Fully crossed, no self-coding.
+# Do not set FJF_FLAT_HISTORY for extraction (coders receive input in the same default form as before).
 set -e
 unset FJF_FLAT_HISTORY
-N=results_q2_native-gemini.jsonl   # gemini・本物のターン
-F=results_q2_flat.jsonl            # openai / anthropic / qwen・畳んだ形
+N=results_q2_native-gemini.jsonl   # gemini, native turns
+F=results_q2_flat.jsonl            # openai / anthropic / qwen, folded
 for CB in q1 q2_consistency; do
   python3 fjf_extract.py --in $N --cb $CB --coder anthropic --subject gemini           --workers 4
   python3 fjf_extract.py --in $N --cb $CB --coder openai    --subject gemini           --workers 4
@@ -13,4 +13,4 @@ for CB in q1 q2_consistency; do
   python3 fjf_extract.py --in $F --cb $CB --coder gemini    --subject anthropic qwen   --workers 4
   python3 fjf_extract.py --in $F --cb $CB --coder qwen      --subject openai anthropic --workers 4
 done
-echo "抽出 12 本 完了"
+echo "12 extractions done"

@@ -41,16 +41,16 @@ for (s, t), dd in sorted(trials.items()):
                         arith=arith, esc=[dd[d]['escalated'] for d in DAYS],
                         plan=[dd[d]['plan_relation'] for d in DAYS], deficit=deficit))
 
-print('=== 試行ごとの軌跡（一致した値のみ）===')
+print('=== trajectories by trial (agreed values only) ===')
 for s in S:
     print(f'\n[{s}]')
     for r in rows[s]:
-        dr = ''.join('  ・' if x is None else f'{x:+4d}' for x in r['drift'])
-        flag = ' ★超過' if r['cum'] > STOCK else ''
-        print(f"  #{r['t']:2d} 日ごと{r['sums']} 累計{r['cum']:2d}{flag:6s} 不足{r['deficit']} 歩行不能{r['walk']}  帳簿のずれ[{dr} ]")
+        dr = ''.join('   .' if x is None else f'{x:+4d}' for x in r['drift'])
+        flag = ' ★over' if r['cum'] > STOCK else ''
+        print(f"  #{r['t']:2d} daily{r['sums']} cum{r['cum']:2d}{flag:6s} short{r['deficit']} cannot_walk{r['walk']}  drift[{dr} ]")
 
-print('\n=== 被験者ごとの要約 ===')
-print(f"{'':10s}{'軌跡の種類':>8s}{'在庫超過':>8s}{'歩行不能>0':>10s}{'帳簿ずれ≠0':>12s}{'算術不一致':>10s}{'escalated':>10s}")
+print('\n=== summary by subject ===')
+print(f"{'':10s}{'traject.':>8s}{'over':>8s}{'walk>0':>10s}{'drift!=0':>12s}{'arith':>10s}{'escalated':>10s}")
 for s in S:
     R = rows[s]
     kinds = len({tuple(r['sums']) for r in R})

@@ -1,6 +1,6 @@
 #!/bin/sh
-# SI elevator 段階 2：規範なし（2 ターン）と規範あり（3 ターン）を同じ実行で交互に割り付ける。
-# 4 被験者 × 3 確率 × 2 条件 × 25 試行 = 600 本。段階 1 の後に回す。
+# Supplementary elevator, stage 2: no norm (2 turns) and norm first (3 turns), interleaved within one run.
+# 4 subjects x 3 probabilities x 2 conditions x 25 trials = 600 runs. Run after stage 1.
 set -e
 export FJF_FLAT_HISTORY=""
 R=results_elevator.jsonl
@@ -12,4 +12,4 @@ for Q in elevator_norm elevator_action elevator_reason; do
   python3 fjf_extract.py --in $R --cb $Q --coder gemini    --subject anthropic qwen   --workers 4
   python3 fjf_extract.py --in $R --cb $Q --coder qwen      --subject anthropic openai --workers 4
 done
-echo "段階 2：実行 600 本・抽出 12 本 完了"
+echo "stage 2: 600 runs, 12 extractions done"

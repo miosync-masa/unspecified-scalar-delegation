@@ -1,9 +1,9 @@
 #!/bin/sh
-# data/ から結果文書をすべて作り直す。リポジトリのルートで実行する。
-# q1・q2 の確定記録（RESULTS_q1.md / RESULTS_q2.md）は歴史的版として本文を固定している。
-# 他の文書が使うその表は analysis/q12_tables.py が採点データから計算し、確定記録と照合する。
-#   sh analysis/make_all.sh            # results/ を上書きする
-#   sh analysis/make_all.sh --check    # results/ は触らず、作り直した版との差分だけ表示する
+# Rebuild every result document from data/. Run from the repository root.
+# The q1 and q2 frozen records (RESULTS_q1.md / RESULTS_q2.md) keep their text fixed as historical versions.
+# Their tables used by other documents are computed from coded data by analysis/q12_tables.py and checked against them.
+#   sh analysis/make_all.sh            # overwrite results/
+#   sh analysis/make_all.sh --check    # leave results/ untouched and only report differences from the rebuilt version
 set -e
 cd "$(dirname "$0")/.."
 python3 analysis/build_inputs.py
@@ -19,9 +19,9 @@ OUTS="RESULTS.md RESULTS_q3.md RESULTS_q4.md RESULTS_q2_eval.md EXHIBITS.md RESU
 if [ "$1" = "--check" ]; then
   ST=0
   for f in $OUTS; do
-    if diff -q results/$f build/$f > /dev/null; then echo "一致  $f"; else echo "差分  $f"; ST=1; fi
+    if diff -q results/$f build/$f > /dev/null; then echo "match  $f"; else echo "DIFF   $f"; ST=1; fi
   done
   exit $ST
 fi
 for f in $OUTS; do cp build/$f results/$f; done
-echo "results/ を更新しました"
+echo "results/ updated"

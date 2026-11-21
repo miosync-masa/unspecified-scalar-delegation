@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
-"""q1・q2 の確定記録の表を、採点データから作り直す。
+"""Rebuild the tables of the q1 and q2 frozen records from the coded data.
 
-RESULTS_q1.md・RESULTS_q2.md は歴史的版として本文を固定しているが、
-RESULTS.md が使うそれらの表の数値は、ここで採点データから計算し、
-確定記録の表と一字一句一致することを確かめてから使う（gen_results.py）。
+RESULTS_q1.md and RESULTS_q2.md keep their text fixed as historical versions. The numbers of their
+tables used by RESULTS.md are computed here from the coded data and used only after they match
+the frozen tables character for character (gen_results.py).
 
-集約規則は確定記録の記載どおり:
-  q1・q2 の選択（v2.0 / v2.1）: 自分以外の 3 体が採点し、3 体一致のみ採用
-  q2 の整合性（v2.1）: 3 体一致のみ採用。割れた件数は「不一致」に別に数える
-  AC1（測定器の信頼性の表）: 被験者ごとに 3 コーダーの Gwet AC1。q1 の frame_cited は
-    A2 セル（NA2・KA2）を除外する（codebook v2.1 の frame_cited.scope）
-入力は build/q12/ 以下（analysis/build_inputs.py が data/coded/ から置く）。
+Aggregation rules as stated in the frozen records:
+  q1 and q2 choice (v2.0 / v2.1): coded by the 3 models other than the subject; 3-coder unanimity only
+  q2 consistency (v2.1): 3-coder unanimity only; splits are counted separately as "disagreement"
+  AC1 (instrument reliability table): Gwet's AC1 over 3 coders per subject. For q1 frame_cited,
+    the A2 cells (NA2, KA2) are excluded (frame_cited.scope in codebook v2.1)
+Input is under build/q12/ (placed from data/coded/ by analysis/build_inputs.py).
+Table cells are built in the Japanese format of the frozen records so they can be compared.
 """
 import json, glob, collections
 
@@ -41,7 +42,7 @@ def _by_key(pattern, question, var, versions):
         if k[0] not in ('q1_length_control', 'q2'):
             continue
         if len(v) != 3 or k[1] in v:
-            raise SystemExit(f'コーダー構成が想定（自分以外の 3 体）と違います: {k} {sorted(v)}')
+            raise SystemExit(f'coder set differs from the expected 3 non-self coders: {k} {sorted(v)}')
     return d
 
 
@@ -51,7 +52,7 @@ def _unanimous(v):
 
 
 def q1_table(base='q12'):
-    """| 被験者 | NA | NA2 | ND | KA | KA2 | KD | の行（北/南）"""
+    """Rows of the table | 被験者 | NA | NA2 | ND | KA | KA2 | KD | (north/south)."""
     d = _by_key(f'{base}/coded_q1_*.jsonl', 'q1', 'choice', {'2.0'})
     c = collections.Counter()
     for k, v in d.items():
@@ -61,7 +62,7 @@ def q1_table(base='q12'):
 
 
 def q2_table(base='q12'):
-    """| 被験者 | KA-KD | KD-KA | NA-ND | ND-NA | の行（1問目→2問目の北）"""
+    """Rows of the table | 被験者 | KA-KD | KD-KA | NA-ND | ND-NA | (north, Q1 -> Q2)."""
     d = _by_key(f'{base}/coded_q1_*.jsonl|{base}/coded_q2_q1_*.jsonl', 'q1', 'choice', {'2.1'})
     c = collections.Counter()
     for k, v in d.items():
@@ -71,7 +72,7 @@ def q2_table(base='q12'):
 
 
 def q2c_table(base='q12'):
-    """| 被験者 | 整合している | 部分的に整合 | 整合していない | 不一致 | AC1 | の行"""
+    """Rows of the table | 被験者 | 整合している | 部分的に整合 | 整合していない | 不一致 | AC1 |."""
     import fjf_extract as ex
     d = _by_key(f'{base}/coded_q2_q2_consistency_*.jsonl', 'q2_consistency',
                 'consistency_claim', {'2.1'})
@@ -88,9 +89,9 @@ def q2c_table(base='q12'):
 
 
 def q2_choices(base='q12', order='KA-KD'):
-    """q2 の各試行・各問の選択（3 体一致のみ、割れは None）。
-    {(被験者, 試行, '1' or '2'): '北' / '南' / None}。q3_recall の照合の正解に使う
-    （q3_recall の履歴は q2 の同じ試行の KA-KD を再生している。raw の history_src）。"""
+    """Choice per q2 trial and question (3-coder unanimity only; splits are None).
+    {(subject, trial, '1' or '2'): '北' / '南' / None}. Used as truth for checking q3_recall
+    (q3_recall histories replay KA-KD from the same q2 trial; see history_src in the raw records)."""
     d = _by_key(f'{base}/coded_q1_*.jsonl|{base}/coded_q2_q1_*.jsonl', 'q1', 'choice', {'2.1'})
     out = {}
     for k, v in d.items():
@@ -105,8 +106,8 @@ AC1_VARS = ['choice', 'timeline_endpoint', 'third_party', 'frame_cited', 'frame_
 
 
 def ac1_table(design, base='q12'):
-    """| 変数 | gemini | openai | anthropic | qwen | の変数の行（AC1、小数 2 桁）。
-    design は 'q1'（第1問）か 'q2'（第2問の選択ターン）。"""
+    """Variable rows of the table | 変数 | gemini | openai | anthropic | qwen | (AC1, 2 decimals).
+    design is 'q1' (question 1) or 'q2' (choice turns of question 2)."""
     import fjf_extract as ex
     kind = {'q1': 'q1_length_control', 'q2': 'q2'}[design]
     pat = f'{base}/coded_q1_*.jsonl' + ('' if design == 'q1' else f'|{base}/coded_q2_q1_*.jsonl')
@@ -130,7 +131,7 @@ def ac1_table(design, base='q12'):
 
 
 def ac1_frozen(path):
-    """確定記録の AC1 の表から変数の行だけを、少数側の列を除いて取り出す。"""
+    """Take only the variable rows of the frozen AC1 table, without the minority column."""
     rows, lines = {}, open(path, encoding='utf-8').read().split('\n')
     for i, l in enumerate(lines):
         if l.startswith('| 変数 | gemini | openai | anthropic | qwen |'):
@@ -144,18 +145,18 @@ def ac1_frozen(path):
 
 
 def check_ac1(design, path):
-    """AC1 の表を計算し、確定記録と一致することを確かめてから返す。"""
+    """Compute the AC1 table and return it after checking it matches the frozen record."""
     frozen, comp = ac1_frozen(path), ac1_table(design)
     if frozen != comp:
         bad = [v for v in comp if frozen.get(v) != comp[v]]
-        raise SystemExit(f'{design} の AC1 が確定記録と一致しません: {bad}')
+        raise SystemExit(f'AC1 for {design} does not match the frozen record: {bad}')
     return comp
 
 
 def check(frozen, computed, name):
-    """確定記録の表と計算した表が一致することを確かめる。食い違えば止まる。"""
+    """Check that the computed table matches the frozen one; stop on any mismatch."""
     for s in S:
         if frozen[s] != computed[s]:
-            raise SystemExit(f'{name} の {s} が確定記録と一致しません: '
-                             f'確定記録 {frozen[s]} / データ {computed[s]}')
+            raise SystemExit(f'{name}: {s} does not match the frozen record: '
+                             f'frozen {frozen[s]} / data {computed[s]}')
     return computed

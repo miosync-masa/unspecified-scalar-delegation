@@ -1,26 +1,25 @@
 #!/usr/bin/env python3
 """
-FJF 特徴量抽出 — コードブックを適用して本文を変数の行に変換する
+FJF feature extraction — apply the codebook to turn a response into a row of variables
 
-これは評価ではない。正解を決めず、規範的な判断も下さない。本文1件から
-変数の1行を取るだけである。指標は変数が揃ってから別に計算する。
+This is not evaluation. It sets no correct answer and makes no normative judgment. It only takes
+one row of variables from one response. Indicators are computed separately once the variables exist.
 
-基準は codebook_v1.yaml にある。このスクリプトはそれを読み込んで適用する
-器にすぎないので、判定を変えたいときはこのファイルではなくコードブックを
-変える。変えたら version を上げる。出力には使ったコードブックの version が
-記録される。
+The criteria are in codebook_v1.yaml. This script only loads and applies them, so to change
+a judgment, change the codebook, not this file, and bump its version. Each output records
+the codebook version used.
 
-守っている規則（コードブックの instrument_rules より）
-  I1 盲検化      コーダーに渡すのは本文のみ。プロバイダ名・条件名・試行番号は渡さない
-  I2 自己採点禁止 被験者と同系統のモデルはコーダーにしない。衝突すると停止する
-  I7 根拠の提示  すべての値に本文からの引用を要求し、本文に無い引用は検証で落とす
-  I8 構成概念禁止 低水準の変数だけを取る。導出量は計算しない
+Rules enforced (from the codebook's instrument_rules)
+  I1 blinding          coders receive only the response; no provider, condition or trial number
+  I2 no self-coding    a model of the subject's family is never a coder; a clash stops the run
+  I7 evidence          every value requires a quotation from the response; quotations not in it fail verification
+  I8 no constructs     only low-level variables are taken; derived quantities are not computed
 
-入力は fjf_run.py が吐く統一形式のレコード。本文の在処を知る必要はなく、
-各ターンが自分を測る変数群の名前（cb_question）を持っている。--cb でその
-うちの一群を選ぶと、入力のどの設計でも同じ経路で抽出できる。
+Input is the uniform record written by fjf_run.py. There is no need to know where the text came from;
+each turn carries the name of the variable group that measures it (cb_question). Choosing a group
+with --cb extracts any design in the input through the same path.
 
-使い方
+Usage
   python3 fjf_extract.py --dry-run --cb q1
   python3 fjf_extract.py --cb q1 --in results_q1.jsonl --coder anthropic
   python3 fjf_extract.py --cb q4 --in results_q4.jsonl --coder openai
@@ -42,7 +41,7 @@ from fjf_api import PROVIDERS, chat, load_dotenv, make_client, with_retry
 
 CODEBOOK = "codebook_v1.yaml"
 
-# 被験者モデルとコーダーの系統衝突（I2）。同系統を指定したら止める。
+# Family clash between subject and coder (I2). Stop if the same family is given.
 SAME_FAMILY = {
     "gemini": {"gemini"},
     "openai": {"openai"},
@@ -50,10 +49,10 @@ SAME_FAMILY = {
     "qwen": {"qwen"},
 }
 
-# 本文の在処はこのファイルの関心ではない。入力レコードの turns 配列に
-# cb_question が入っていて、どの変数群で測るかはそこに書かれている。
-# 刺激の設計は scenario YAML、測定の基準は codebook YAML、この器は
-# どちらも持たない。
+# Where the text came from is not this file's concern. The turns array of each input record
+# carries cb_question, which names the variable group to measure with.
+# The stimulus design is in the scenario YAML and the measurement criteria in the codebook YAML;
+# this module holds neither.
 
 _print_lock = threading.Lock()
 _write_lock = threading.Lock()
@@ -64,7 +63,7 @@ def log(msg):
         print(msg, flush=True)
 
 
-# ---------------------------------------------------------------- コードブック
+# ---------------------------------------------------------------- codebook
 
 def load_codebook(path=CODEBOOK):
     with open(path, encoding="utf-8") as f:
@@ -74,47 +73,50 @@ def load_codebook(path=CODEBOOK):
 
 
 def check_codebook(cb):
-    """課金の前にここで死ぬ。条項や変数のキー欠けは API を叩く前に分かる。"""
+    """Fail here, before any billing: missing keys in clauses or variables are found before calling an API."""
     bad = []
     for sect, keys in (("instrument_rules", ("id", "name", "rule")),
                        ("boundary_cases", ("id", "name", "rule"))):
         for item in cb.get(sect) or []:
             miss = [k for k in keys if k not in item]
             if miss:
-                bad.append(f"{sect} {item.get('id', '?')}: キーが無い {miss}")
+                bad.append(f"{sect} {item.get('id', '?')}: missing keys {miss}")
     for name, spec in (cb.get("variables") or {}).items():
         for k in ("questions", "type", "definition"):
             if k not in spec:
-                bad.append(f"variables {name}: キーが無い ['{k}']")
+                bad.append(f"variables {name}: missing key ['{k}']")
         if spec.get("type") == "enum" and not spec.get("values"):
-            bad.append(f"variables {name}: enum なのに values が無い")
+            bad.append(f"variables {name}: enum without values")
         if spec.get("type") == "int":
             for k in ("min", "max"):
                 if not isinstance(spec.get(k), int):
-                    bad.append(f"variables {name}: int なのに {k} が整数でない")
+                    bad.append(f"variables {name}: int but {k} is not an integer")
     for name, spec in (cb.get("derived") or {}).items():
         for v in (spec.get("needs") or []):
             if v not in (cb.get("variables") or {}):
-                bad.append(f"derived {name}: 無い変数を参照 '{v}'")
+                bad.append(f"derived {name}: refers to a missing variable '{v}'")
     if bad:
-        raise SystemExit("コードブックの不備:\n  " + "\n  ".join(bad))
+        raise SystemExit("codebook defects:\n  " + "\n  ".join(bad))
 
 
 def vars_for(cb, question):
-    """この質問で取る変数だけを返す。"""
+    """Return only the variables taken for this question."""
     out = {}
     for name, spec in cb["variables"].items():
         if question in spec.get("questions", []):
             out[name] = spec
-        # q2 の各ターンは q2、整合性ターンは q2_consistency で指定する
+        # each q2 turn is specified as q2, the consistency turn as q2_consistency
     return out
 
 
 def render_rules(cb):
+    # The coder prompt is in Japanese, the language of the instrument. The strings that reach
+    # the coders (here, in build_prompt_parts and in the system message) are left untranslated
+    # on purpose: changing them would change the instrument.
     lines = ["## 測定器の規則", ""]
     for r in cb["instrument_rules"]:
         if r["id"] in ("I1", "I2"):
-            continue  # コーダーに渡す意味がない（渡す側が守る規則）
+            continue  # pointless to pass to coders (a rule the sender enforces)
         lines.append(f"- **{r['id']} {r['name']}**: {r['rule'].strip()}")
     lines.append("")
     lines.append("## 共通の境界例")
@@ -160,17 +162,17 @@ def render_vars(variables):
 
 
 def build_prompt(cb, variables, body):
-    """従来どおり1本の文字列を返す。中身は parts の連結と同一である。"""
+    """Return one string as before; identical to the concatenation of the parts."""
     pre, rest = build_prompt_parts(cb, variables, body)
     return pre + rest
 
 
 def build_prompt_parts(cb, variables, body):
-    """(不変部分, 本文部分) に分ける。連結すると build_prompt と一字も変わらない。
+    """Split into (invariant part, response part). Concatenated, it is character-identical to build_prompt.
 
-    不変部分は同じ質問のあいだ完全に同一なので、プロバイダ側の
-    接頭辞キャッシュに乗る。条項が 7,733 字、変数定義が最大 4,636 字あり、
-    これを抽出 1 件ごとに生で送り直していた分がそのまま課金されていた。
+    The invariant part is identical for all records of a question, so it hits the provider's
+    prefix cache. The clauses are 7,733 characters and variable definitions up to 4,636; resending
+    them raw for every extraction was billed in full.
     """
     return _build_prefix(cb, variables), body + "\n"
 
@@ -178,6 +180,7 @@ def build_prompt_parts(cb, variables, body):
 def _build_prefix(cb, variables):
     schema = {}
     for name, spec in variables.items():
+        # coder-facing text below stays in Japanese (see the note in the rules builder above)
         schema[name] = {"value": "<値>", "evidence": "<本文からの引用>"}
     return f"""あなたはコードブックに従って、与えられた本文から特徴量を取り出します。
 
@@ -210,18 +213,18 @@ evidence は本文に実際に現れる文字列を、改変せずそのまま�
 """
 
 
-# ---------------------------------------------------------------- 検証
+# ---------------------------------------------------------------- verification
 
 def extract_json(text):
-    """コーダーの出力から JSON を取り出す。"""
+    """Extract the JSON from a coder's output."""
     m = re.search(r"\{.*\}", text, re.S)
     if not m:
-        raise ValueError("JSON が見つからない")
+        raise ValueError("no JSON found")
     return json.loads(m.group(0))
 
 
 def _norm(v):
-    """YAML の true/false と JSON の真偽値・文字列を同じ形に揃える。"""
+    """Normalize YAML true/false and JSON booleans/strings to one form."""
     if isinstance(v, bool):
         return "true" if v else "false"
     t = str(v).strip()
@@ -231,7 +234,7 @@ def _norm(v):
 
 
 def _as_int(v):
-    """整数として読めれば int、読めなければ None。bool は数に数えない。"""
+    """int if readable as an integer, else None. bool does not count as a number."""
     if isinstance(v, bool):
         return None
     if isinstance(v, int):
@@ -242,7 +245,9 @@ def _as_int(v):
 
 
 def verify(parsed, variables, body):
-    """値域と引用の存在を確かめる（I7）。落ちたものは理由を付けて返す。"""
+    """Check the value range and that the quotation exists (I7). Failures are returned with reasons.
+
+    Flag and problem strings are kept in Japanese because they are stored in the coded data."""
     out, problems = {}, []
     norm = re.sub(r"\s+", "", body)
     for name, spec in variables.items():
@@ -285,13 +290,13 @@ def verify(parsed, variables, body):
     return out, problems
 
 
-# ---------------------------------------------------------------- 本文の取り出し
+# ---------------------------------------------------------------- taking the response text
 
 def bodies(rec, cb_question):
-    """1レコードから (ターンID, 本文) を列挙する。
+    """Enumerate (turn ID, text) from one record.
 
-    履歴として積んだターンは先行設計で既に採点済みなので飛ばす。
-    cb_question が一致したターンだけを返す。
+    Turns stacked as history were already coded in the preceding design and are skipped.
+    Only turns whose cb_question matches are returned.
     """
     for i, t in enumerate(rec.get("turns") or []):
         if t.get("from_history"):
@@ -306,9 +311,9 @@ def bodies(rec, cb_question):
 
 
 def row_key(rec, subid):
-    """対象の一意キー。レコード側の key をそのまま使い、ターンを足す。
+    """Unique key of a target: the record's key with the turn appended.
 
-    コーダーをまたいで同じ対象が同じキーになることが一致率計算の前提。
+    Agreement computation assumes the same target has the same key across coders.
     """
     base = rec.get("key")
     if base is None:
@@ -317,17 +322,17 @@ def row_key(rec, subid):
     return tuple(list(base) + [subid])
 
 
-# ---------------------------------------------------------------- 実行
+# ---------------------------------------------------------------- execution
 
 def load_done(path, cb_version=None):
-    """済みのキーを集める。失敗した行と、古い版で採点した行は数えない。
+    """Collect completed keys. Failed rows and rows coded under an older version do not count.
 
-    error を持つ行を済みに入れると、API が落ちた1件が永久に再試行され
-    なくなる。再実行で拾えなければならない。
+    Counting rows with an error as done would mean a record lost to an API failure is never retried.
+    A rerun must pick it up.
 
-    コードブックの版も照合する。条項を直して版を上げたあと同じ設計を
-    採点し直すとき、古い版の行が「済み」になると一件も走らない。版が
-    違う行は別の測定なので、済みに数えない。
+    The codebook version is checked too. When re-coding a design after fixing clauses and bumping the
+    version, old-version rows counted as done would mean nothing runs. Rows of a different
+    version are a different measurement and do not count as done.
     """
     done = set()
     if not os.path.exists(path):
@@ -348,8 +353,8 @@ def load_done(path, cb_version=None):
                 continue
             done.add(tuple(r["key"]))
     if stale:
-        log(f"  古い版の行 {stale} 件は済みに数えません"
-            f"（現在 v{cb_version}）")
+        log(f"  {stale} old-version rows are not counted as done"
+            f" (current v{cb_version})")
     return done
 
 
@@ -361,18 +366,18 @@ def append(path, rec):
 
 # ---------------------------------------------------------------- Batch
 
-# Batch は標準レートの半額になる。抽出は一つも急ぎではないので全件これでよい。
-# live と同じ build_prompt_parts / verify / append を通すので、
-# 二つの経路でプロンプトや判定が分岐することはない。
+# Batch costs half the standard rate. No extraction is urgent, so all can use it.
+# It goes through the same build_prompt_parts / verify / append as live,
+# so prompts and judgments cannot diverge between the two paths.
 
 BATCH_ENDPOINT = {"openai": "/v1/responses", "anthropic": "/v1/messages"}
 
 
 def _batch_body(coder, model, pre, rest, effort, max_tokens):
-    """live の chat() が送るのと同じ中身を Batch の形にする。"""
+    """Put the same content that live chat() sends into the Batch format."""
     sysmsg = "あなたは与えられたコードブックを厳密に適用します。"
     if coder == "openai":
-        # live と同じ明示境界を置く。これが無いと GPT-6 世代はキャッシュを使わない。
+        # Same explicit boundary as live; without it the GPT-6 generation does not use the cache.
         return {"model": model, "instructions": sysmsg,
                 "input": [{"role": "user", "content": [
                     {"type": "input_text", "text": pre,
@@ -388,11 +393,11 @@ def _batch_body(coder, model, pre, rest, effort, max_tokens):
                      "cache_control": {"type": "ephemeral"}},
                     {"type": "text", "text": rest}]}],
                 "output_config": {"effort": effort}}
-    raise SystemExit(f"--batch は openai と anthropic のみ。{coder} は live で回す。")
+    raise SystemExit(f"--batch supports only openai and anthropic. Run {coder} live.")
 
 
 def _batch_text(coder, item):
-    """Batch の1件分の結果から本文だけ取り出す。形が違えば例外にする。"""
+    """Take only the text from one Batch result; raise if the shape differs."""
     if coder == "openai":
         r = (item.get("response") or {}).get("body") or {}
         if item.get("error") or r.get("error"):
@@ -405,7 +410,7 @@ def _batch_text(coder, item):
                 if c.get("type") in ("output_text", "text") and c.get("text"):
                     parts.append(c["text"])
         if not parts:
-            raise RuntimeError(f"本文が取れない: {str(r)[:200]}")
+            raise RuntimeError(f"no text in result: {str(r)[:200]}")
         return "".join(parts), r.get("usage") or {}
     res = item.get("result") or {}
     if res.get("type") != "succeeded":
@@ -414,7 +419,7 @@ def _batch_text(coder, item):
     parts = [c.get("text", "") for c in msg.get("content") or []
              if c.get("type") == "text"]
     if not any(parts):
-        raise RuntimeError(f"本文が取れない: {str(msg)[:200]}")
+        raise RuntimeError(f"no text in result: {str(msg)[:200]}")
     return "".join(parts), msg.get("usage") or {}
 
 
@@ -441,11 +446,11 @@ def _norm_usage(coder, u):
 
 def batch_submit(cb, variables, question, coder, client, model, jobs,
                  out_path, effort, max_tokens):
-    """jobs を Batch に投げ、台帳を書いて batch id を返す。"""
+    """Submit jobs as a Batch, write the manifest and return the batch id."""
     import tempfile
     manifest_path = out_path + ".batch.json"
     if os.path.exists(manifest_path):
-        sys.exit(f"{manifest_path} が既にあります。先に --batch collect してください。")
+        sys.exit(f"{manifest_path} already exists. Run --batch collect first.")
     rows, reqs = [], []
     for i, (rec, subid, body) in enumerate(jobs):
         pre, rest = build_prompt_parts(cb, variables, body)
@@ -480,27 +485,27 @@ def batch_submit(cb, variables, question, coder, client, model, jobs,
                 "submitted": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=1)
-    print(f"Batch を投げました: {bid}")
-    print(f"  件数 {len(reqs)} / 台帳 {manifest_path}")
-    print(f"  取り込みは --batch collect --out {out_path}")
+    print(f"Batch submitted: {bid}")
+    print(f"  {len(reqs)} requests / manifest {manifest_path}")
+    print(f"  collect with --batch collect --out {out_path}")
     return bid
 
 
 def batch_collect(cb, variables, client, out_path):
-    """Batch の結果を live と同じ形のレコードにして書き出す。"""
+    """Write Batch results as records of the same shape as live."""
     manifest_path = out_path + ".batch.json"
     if not os.path.exists(manifest_path):
-        sys.exit(f"{manifest_path} がありません。先に --batch submit してください。")
+        sys.exit(f"{manifest_path} not found. Run --batch submit first.")
     man = json.load(open(manifest_path, encoding="utf-8"))
     coder, bid = man["coder"], man["batch_id"]
     if man["codebook_version"] != cb["version"]:
-        sys.exit(f"投げたのは cb {man['codebook_version']}、いまは "
-                 f"{cb['version']}。コードブックを戻すか台帳を捨ててください。")
+        sys.exit(f"submitted with cb {man['codebook_version']}, now "
+                 f"{cb['version']}. Restore the codebook or discard the manifest.")
 
     if coder == "openai":
         bt = client.batches.retrieve(bid)
         if bt.status != "completed":
-            print(f"まだです: {bt.status}（{getattr(bt, 'request_counts', '')}）")
+            print(f"not yet: {bt.status} ({getattr(bt, 'request_counts', '')})")
             return 0
         raw = client.files.content(bt.output_file_id).text
         items = [json.loads(l) for l in raw.splitlines() if l.strip()]
@@ -508,7 +513,7 @@ def batch_collect(cb, variables, client, out_path):
     else:
         bt = client.messages.batches.retrieve(bid)
         if bt.processing_status != "ended":
-            print(f"まだです: {bt.processing_status}")
+            print(f"not yet: {bt.processing_status}")
             return 0
         items = [json.loads(r.model_dump_json()) if hasattr(r, "model_dump_json")
                  else r for r in client.messages.batches.results(bid)]
@@ -540,9 +545,9 @@ def batch_collect(cb, variables, client, out_path):
         except Exception as e:
             append(out_path, {**base, "error": repr(e)})
             fail += 1
-    print(f"取り込み: 成功 {ok} / 失敗 {fail} → {out_path}")
+    print(f"collected: {ok} succeeded / {fail} failed -> {out_path}")
     if fail:
-        print("失敗分は台帳を消さずに live（--batch なし）で拾い直せます。")
+        print("Failures can be picked up live (without --batch) without deleting the manifest.")
     return ok
 
 
@@ -581,22 +586,21 @@ def code_one(cb, variables, question, coder, client, model, rec, subid, body,
         return False
 
 
-# ---------------------------------------------------------------- 一致率
+# ---------------------------------------------------------------- agreement
 
 def _stats(cols):
-    """コーダー別の値の列 cols（同じ順序の対象）から一致指標を出す。
+    """Agreement indices from cols, one list of values per coder (targets in the same order).
 
-    κ だけでは判断を誤る。カテゴリが偏ると、一致率が高くても κ が沈む
-    （内容分析で知られる κ の逆説）。偏りに頑健な Gwet の AC1 を併記し、
-    少数側の件数も出して、低い κ が偏りによるものか不一致によるものかを
-    読み分けられるようにする。
+    κ alone misleads. With skewed categories, κ sinks even when agreement is high
+    (the κ paradox known in content analysis). Gwet's AC1, robust to skew, is reported alongside,
+    with the minority count, so that a low κ can be read as due to skew or to disagreement.
     """
-    m = len(cols)          # コーダー数
-    n = len(cols[0])       # 対象数
+    m = len(cols)          # number of coders
+    n = len(cols[0])       # number of targets
     cats = sorted({v for col in cols for v in col})
     q = len(cats)
 
-    # 観測一致 Po: 対象ごとに、コーダー対のうち一致した割合の平均
+    # observed agreement Po: mean over targets of the share of agreeing coder pairs
     pairs = m * (m - 1) / 2
     po = 0.0
     for i in range(n):
@@ -606,15 +610,15 @@ def _stats(cols):
         po += agree / pairs
     po /= n
 
-    # 各カテゴリの平均割合
+    # mean share of each category
     pi = {c: sum(col.count(c) for col in cols) / (m * n) for c in cats}
 
     if m == 2:
-        # Cohen κ（コーダーごとの周辺分布を使う）
+        # Cohen κ (per-coder marginals)
         pe = sum((cols[0].count(c) / n) * (cols[1].count(c) / n) for c in cats)
         name = "Cohen κ"
     else:
-        # Fleiss κ（全コーダー共通の周辺分布を使う）
+        # Fleiss κ (marginals pooled over coders)
         pe = sum(p * p for p in pi.values())
         name = "Fleiss κ"
     kappa = (po - pe) / (1 - pe) if pe < 1 else 1.0
@@ -623,7 +627,7 @@ def _stats(cols):
     pe_g = sum(p * (1 - p) for p in pi.values()) / (q - 1) if q > 1 else 0.0
     ac1 = (po - pe_g) / (1 - pe_g) if pe_g < 1 else 1.0
 
-    # 偏りの目安：最頻値の割合と、少数側の件数（全コーダー合算）
+    # skew indicators: share of the modal value and minority count (all coders combined)
     allvals = [v for col in cols for v in col]
     top = max(pi.values()) if pi else 1.0
     minority = len(allvals) - allvals.count(max(pi, key=pi.get))
@@ -632,11 +636,11 @@ def _stats(cols):
 
 
 def agreement(paths, subject=None, design=None):
-    """2体以上の抽出結果の一致指標を出す。
+    """Agreement indices for extraction results from two or more coders.
 
-    完全交差（各被験者を自分以外の3体が採点）だと、2つのコーダーの
-    ファイルは2被験者を共有する。被験者をまたいで一致率をプールすると
-    本文の違いとコーダーの違いが混ざるので、subject で1被験者に絞る。
+    Under full crossing (each subject coded by the three others), two coders' files share
+    two subjects. Pooling agreement across subjects mixes differences in text with differences
+    between coders, so restrict to one subject with subject.
     """
     sets = []
     for p in paths:
@@ -665,25 +669,25 @@ def agreement(paths, subject=None, design=None):
 
     for p, coder, ver, d in sets:
         print(f"  {coder or '?':10s} n={len(d):4d}  codebook {ver or '?'}  ({p})")
-    print(f"  共通 n={len(shared)}  コーダー {len(sets)} 体\n")
+    print(f"  shared n={len(shared)}  {len(sets)} coders\n")
     if not shared:
         return
 
     dsgs = {k[0] for _, _, _, d in sets for k in d if k}
     if len(dsgs) > 1:
-        print(f"  !! 設計が混在している: {sorted(dsgs)}")
-        print("     --design で1つに絞ること。混ぜると別実験がプールされる。\n")
+        print(f"  !! designs are mixed: {sorted(dsgs)}")
+        print("     Restrict to one with --design; mixing pools separate experiments.\n")
 
     vers = {ver for _, _, ver, _ in sets}
     if len(vers) > 1:
-        print(f"  !! コードブックの版が混在している: {sorted(vers)}")
-        print("     同じ版で抽出したものを比べること。\n")
+        print(f"  !! codebook versions are mixed: {sorted(vers)}")
+        print("     Compare extractions made with the same version.\n")
 
     names = sorted(set.intersection(*[
         {n for k in shared for n in d[k]} for _, _, _, d in sets]))
 
-    hdr = "  変数".ljust(30) + "一致".ljust(8)
-    print(hdr + "κ".ljust(8) + "AC1".ljust(8) + "最頻値".ljust(8) + "少数側")
+    hdr = "  variable".ljust(30) + "agree".ljust(8)
+    print(hdr + "κ".ljust(8) + "AC1".ljust(8) + "modal".ljust(8) + "minority")
     low = []
     for name in names:
         cols = [[d[k].get(name) for k in shared] for _, _, _, d in sets]
@@ -694,29 +698,29 @@ def agreement(paths, subject=None, design=None):
             low.append((name, ac1))
         if minority <= 2:
             low.append((name, None))
-    print(f"\n  κ は {kname}。")
-    print("  κ は偏りに弱い。一致率が高いのに κ が低い変数は、まず少数側の")
-    print("  件数を見ること。少数側が小さいほど κ は沈む。AC1 はその補正。")
-    print("  少数側が 2 以下の変数は、一致率が 1.00 でも信頼性は測れていない。")
-    print("  その値が増えるデータで測り直すこと。")
+    print(f"\n  κ is {kname}.")
+    print("  κ is sensitive to skew. For a variable with high agreement but low κ, look first at")
+    print("  the minority count; the smaller it is, the more κ sinks. AC1 corrects for this.")
+    print("  For variables with 2 or fewer minority cases, reliability is unmeasured even at agreement 1.00.")
+    print("  Remeasure on data where that value is more frequent.")
     if low:
-        print("\n  要対応:")
+        print("\n  to address:")
         for name, ac1 in low:
             if ac1 is None:
-                print(f"    {name}: 少数側が小さく、まだ測れていない")
+                print(f"    {name}: minority too small, not yet measured")
             else:
                 print(f"    {name}: AC1 = {ac1:.2f}")
-        print("    不一致が条項の穴なら、文言を直して version を上げ、再抽出する。")
-        print("    適用のばらつきなら直さない。個別の判定は手で上書きしないこと。")
+        print("    If the disagreement is a gap in a clause, fix the wording, bump the version and re-extract.")
+        print("    If it is variation in application, do not fix it. Never overwrite individual judgments by hand.")
 
 
 def diff(paths, only=None, limit=8, subject=None, design=None):
-    """不一致の中身を並べる。AC1 が低い原因を目で見るための道具。
+    """List the content of disagreements: a tool for seeing why AC1 is low.
 
-    低い AC1 は、条項の穴か適用のばらつきかのどちらかである。数字だけ
-    では区別がつかないので、揉めた本文の引用を両コーダー分並べる。
-    同じ文に別の値が付いていれば条項の穴、別の文を引いていれば読み取り
-    の差である。
+    Low AC1 is either a gap in a clause or variation in application. Numbers alone cannot
+    tell them apart, so both coders' quotations from the disputed text are listed side by side.
+    Different values on the same sentence suggest a gap in a clause; different sentences quoted
+    suggest a difference in reading.
     """
     sets = []
     for p in paths:
@@ -736,14 +740,14 @@ def diff(paths, only=None, limit=8, subject=None, design=None):
             d[key] = r
         sets.append((coder, d))
     if len(sets) != 2:
-        sys.exit("--diff は2体ぶんのファイルを渡してください。")
+        sys.exit("--diff needs files from exactly two coders.")
     (ca, A), (cb_, B) = sets
     shared = sorted(set(A) & set(B))
     names = sorted({n for k in shared for n in A[k]["values"]})
     if only:
         names = [n for n in names if n in only]
 
-    print(f"  {ca} ... {cb_}   共通 n={len(shared)}\n")
+    print(f"  {ca} ... {cb_}   shared n={len(shared)}\n")
     for name in names:
         dis = [k for k in shared
                if _norm(A[k]["values"][name]["value"])
@@ -755,10 +759,10 @@ def diff(paths, only=None, limit=8, subject=None, design=None):
                         == B[k]["values"][name].get("evidence")
                         and A[k]["values"][name].get("evidence"))
         print("=" * 68)
-        print(f"{name}  不一致 {len(dis)}/{len(shared)}"
-              f"   同じ引用で値が違う: {same_span} 件")
+        print(f"{name}  disagreements {len(dis)}/{len(shared)}"
+              f"   same quotation, different value: {same_span}")
         if same_span and same_span >= len(dis) / 2:
-            print("  → 同じ文に別の値。条項の穴の可能性が高い。")
+            print("  -> different values on the same sentence; likely a gap in a clause.")
         print("=" * 68)
         for k in dis[:limit]:
             print(f"── {k[1]} {k[4]} #{k[6]}")
@@ -767,22 +771,22 @@ def diff(paths, only=None, limit=8, subject=None, design=None):
                 ev = (v.get("evidence") or "").replace("\n", " ")
                 print(f"   {str(nm):10s} {str(v['value']):8s} 「{ev[:84]}」")
         if len(dis) > limit:
-            print(f"   ... 他 {len(dis)-limit} 件")
+            print(f"   ... {len(dis)-limit} more")
         print()
 
 
 # ---------------------------------------------------------------- main
 
 def main():
-    p = argparse.ArgumentParser(description="FJF 特徴量抽出")
-    p.add_argument("--in", dest="inp", help="被験者の出力 jsonl")
+    p = argparse.ArgumentParser(description="FJF feature extraction")
+    p.add_argument("--in", dest="inp", help="subject output jsonl")
     p.add_argument("--cb", "--question", dest="cb", default="q1",
-                   help="コードブックのどの変数群で測るか（既定 q1）")
+                   help="which codebook variable group to measure with (default q1)")
     p.add_argument("--codebook", default=CODEBOOK)
     p.add_argument("--coder", choices=list(PROVIDERS), default="anthropic")
     p.add_argument("--subject", nargs="+", default=None, choices=list(PROVIDERS),
-                   help="採点する被験者を絞る。自分以外を指定して I2 を守る。"
-                        "--agreement / --diff では1体だけ指定して被験者を固定する")
+                   help="restrict the subjects to code; give non-self subjects to respect I2. "
+                        "With --agreement / --diff, give exactly one to fix the subject")
     p.add_argument("--coder-model", default=None)
     p.add_argument("--effort", default="medium")
     p.add_argument("--max-tokens", type=int, default=8192)
@@ -791,27 +795,27 @@ def main():
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--turn-tag", default=None,
-                   help="本文を取るターンのタグ（シナリオの codebook_question）。"
-                        "省略時は --cb と同じ。既に抽出した設計に変数群を後から足すときに使う"
-                        "（例: --cb rations_deficit --turn-tag rations）")
+                   help="tag of the turns to take text from (the scenario's codebook_question). "
+                        "Defaults to --cb. Used to add a variable group to an already extracted design later "
+                        "(e.g., --cb rations_deficit --turn-tag rations)")
     p.add_argument("--batch", choices=["submit", "collect"], default=None,
-                   help="Batch API で回す（標準レートの半額、24時間枠）。"
-                        "submit で投げ、collect で取り込む。openai と anthropic のみ。")
+                   help="run via the Batch API (half the standard rate, 24-hour window). "
+                        "submit sends, collect retrieves. openai and anthropic only.")
     p.add_argument("--agreement", nargs="+", metavar="FILE",
-                   help="2体以上の抽出結果の一致指標を出す（κ と AC1）")
+                   help="agreement indices for two or more coders (κ and AC1)")
     p.add_argument("--diff", nargs=2, metavar="FILE",
-                   help="2体の不一致の中身を並べる（AC1 が低い原因を見る）")
+                   help="list disagreements between two coders (to see why AC1 is low)")
     p.add_argument("--var", nargs="+", default=None,
-                   help="--diff で変数を絞る")
+                   help="restrict the variables for --diff")
     p.add_argument("--design", default=None,
-                   help="--agreement / --diff で設計を絞る（1ファイルに"
-                        "複数の設計が同居しているとき必須）")
+                   help="restrict the design for --agreement / --diff (required when one file "
+                        "contains several designs)")
     args = p.parse_args()
 
     one = args.subject[0] if args.subject and len(args.subject) == 1 else None
     if args.subject and len(args.subject) > 1 and (args.diff or args.agreement):
-        sys.exit("--agreement / --diff では --subject は1体だけ指定してください。\n"
-                 "被験者をまたぐと本文の違いとコーダーの違いが混ざります。")
+        sys.exit("With --agreement / --diff, give exactly one --subject.\n"
+                 "Pooling subjects mixes differences in text with differences between coders.")
 
     if args.diff:
         diff(args.diff, only=set(args.var) if args.var else None,
@@ -820,7 +824,7 @@ def main():
 
     if args.agreement:
         if len(args.agreement) < 2:
-            sys.exit("--agreement には2つ以上のファイルを渡してください。")
+            sys.exit("--agreement needs two or more files.")
         agreement(args.agreement, subject=one, design=args.design)
         return
 
@@ -830,20 +834,20 @@ def main():
                      for q in s.get("questions", [])})
     variables = vars_for(cb, question)
     if not variables:
-        sys.exit(f"変数群 {question} はコードブック v{cb['version']} に"
-                 f"ありません。\n候補: {', '.join(groups)}")
+        sys.exit(f"variable group {question} is not in codebook v{cb['version']}"
+                 f".\ncandidates: {', '.join(groups)}")
 
     if args.dry_run:
-        print(f"コードブック version {cb['version']}")
-        print(f"変数群 {question} で取る変数 {len(variables)} 個: "
+        print(f"codebook version {cb['version']}")
+        print(f"variable group {question}: {len(variables)} variables: "
               f"{', '.join(variables)}")
-        print(f"（このコードブックの変数群: {', '.join(groups)}）\n")
+        print(f"(variable groups in this codebook: {', '.join(groups)})\n")
         print("=" * 64)
-        print(build_prompt(cb, variables, "（ここに本文が入る）"))
+        print(build_prompt(cb, variables, "(response text goes here)"))
         return
 
     if not args.inp:
-        sys.exit("--in が必要です。")
+        sys.exit("--in is required.")
 
     recs = [json.loads(l) for l in open(args.inp, encoding="utf-8") if l.strip()]
     recs = [r for r in recs if not r.get("error")]
@@ -851,35 +855,35 @@ def main():
     if args.subject:
         recs = [r for r in recs if r.get("provider") in args.subject]
         if not recs:
-            sys.exit(f"--subject {args.subject} に当たるレコードがありません。")
+            sys.exit(f"no records match --subject {args.subject}.")
 
-    # provider 欄のないレコードは被験者が特定できず、I2 の自己採点チェックが
-    # すり抜ける。通さない。
+    # A record without a provider field cannot identify its subject, so the I2 self-coding check
+    # would be bypassed. Reject it.
     unknown = [r for r in recs if not r.get("provider")]
     if unknown:
         sys.exit(
-            f"provider 欄のないレコードが {len(unknown)} 件あります。\n"
-            "被験者が特定できないと自己採点の禁止（I2）を検査できません。\n"
-            "provider を補完してから渡してください。"
+            f"{len(unknown)} records have no provider field.\n"
+            "Without the subject, the ban on self-coding (I2) cannot be checked.\n"
+            "Fill in provider before passing them."
         )
 
     subjects = {r.get("provider") for r in recs if r.get("provider")}
 
-    # I2 自己採点の禁止
+    # I2 no self-coding
     clash = subjects & SAME_FAMILY.get(args.coder, set())
     if clash:
         sys.exit(
-            f"コーダー {args.coder} は被験者 {sorted(clash)} と同系統です。\n"
-            f"自己採点は禁止（I2）。別系統を --coder で指定するか、\n"
-            f"該当プロバイダを除いた入力を渡してください。"
+            f"coder {args.coder} is of the same family as subjects {sorted(clash)}.\n"
+            f"Self-coding is forbidden (I2). Give another family with --coder, or\n"
+            f"pass input without those providers."
         )
 
     if args.out:
         out_path = args.out
     else:
         tag = "-".join(sorted(subjects)) if len(subjects) < len(PROVIDERS) else "all"
-        # 設計を名前に入れる。変数群だけだと、別の設計のデータを同じ群で
-        # 抽出したときに同じ名前になり、1ファイルに2実験が同居する。
+        # Put the design in the file name. With only the variable group, extracting another design's data
+        # with the same group would give the same name, putting two experiments in one file.
         designs = sorted({r.get("design") or (r.get("key") or [None])[0]
                           for r in recs} - {None})
         dsg = "-".join(designs) if designs else question
@@ -890,7 +894,7 @@ def main():
     load_dotenv()
     key = os.environ.get(PROVIDERS[args.coder]["env"])
     if not key:
-        sys.exit(f"{PROVIDERS[args.coder]['env']} が見つかりません。")
+        sys.exit(f"{PROVIDERS[args.coder]['env']} not found.")
     client = make_client(args.coder, key)
 
     if args.batch == "collect":
@@ -910,13 +914,13 @@ def main():
         jobs = jobs[:args.limit]
 
     if not jobs:
-        print("やることがありません（すべて済み）。")
+        print("Nothing to do (all done).")
         return
 
-    print(f"コードブック version {cb['version']}")
-    print(f"コーダー {args.coder} / {model}（被験者 {sorted(subjects)} と別系統）")
-    print(f"変数 {len(variables)} 個 × 本文 {len(jobs)} 件")
-    print(f"出力 {out_path}（再開可）\n")
+    print(f"codebook version {cb['version']}")
+    print(f"coder {args.coder} / {model}(different family from subjects {sorted(subjects)})")
+    print(f"{len(variables)} variables x {len(jobs)} responses")
+    print(f"output {out_path} (resumable)\n")
 
     if args.batch == "submit":
         batch_submit(cb, variables, question, args.coder, client, model,
@@ -933,8 +937,8 @@ def main():
             if f.result():
                 ok += 1
 
-    print(f"\n完了 {ok}/{len(jobs)}")
-    print("別系統のコーダーでもう一度回し、--agreement で一致指標を出すこと。")
+    print(f"\ndone {ok}/{len(jobs)}")
+    print("Run again with a coder of another family and compute agreement with --agreement.")
 
 
 if __name__ == "__main__":

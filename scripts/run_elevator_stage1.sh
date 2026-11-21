@@ -1,6 +1,6 @@
 #!/bin/sh
-# SI elevator 段階 1：規範の確認。4 被験者 × 25 試行 = 100 コール。
-# 関門（yes が 25 中 23 以上）は RUNBOOK「SI: elevator の事前登録」に先に書いてある。
+# Supplementary elevator, stage 1: norm check. 4 subjects x 25 trials = 100 calls.
+# The gate (at least 23 yes of 25) was fixed in advance: docs/ANALYSIS_PLANS.md, "Supplementary: elevator".
 set -e
 export FJF_FLAT_HISTORY=""
 R=results_elevator_norm.jsonl
@@ -12,4 +12,4 @@ for Q in elevator_norm; do
   python3 fjf_extract.py --in $R --cb $Q --coder gemini    --subject anthropic qwen   --workers 4
   python3 fjf_extract.py --in $R --cb $Q --coder qwen      --subject anthropic openai --workers 4
 done
-echo "段階 1：実行 100 本・抽出 4 本 完了"
+echo "stage 1: 100 runs, 4 extractions done"

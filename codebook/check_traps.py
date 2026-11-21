@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""罠セットの抽出結果を、目視で確定した正解と突き合わせる。"""
+"""Compare extraction results on the trap set with answers fixed by inspection."""
 import json, glob, sys
 N = ['alloc_mina', 'alloc_yona', 'alloc_haru', 'alloc_gen', 'alloc_saya']
 GOLD = {
@@ -24,10 +24,10 @@ for f in files:
             continue
         r = json.loads(l)
         if 'values' not in r:
-            print('  エラー行', r.get('key'), r.get('error', '')[:80]); continue
+            print('  error row', r.get('key'), r.get('error', '')[:80]); continue
         k = r['key']
         # key = (design, provider, world, order, cells, combo, trial, 'n:turn')
-        # combo には全ターン名が入っているので、ターンは最後の要素だけから取る
+        # combo holds every turn name, so take the turn from the last element only
         prov, trial = k[1], k[-2]
         turn = str(k[-1]).split(':', 1)[1].split('/')[0]
         g = GOLD.get((prov, trial, turn))
@@ -35,7 +35,7 @@ for f in files:
         got = tuple(v[n]['value'] for n in N)
         tag = f'{prov} #{trial} {turn}'
         if g is None:
-            print(f'  （正解なし）{tag}  alloc={got}  total={v["stated_total"]["value"]}'
+            print(f'  (no answer) {tag}  alloc={got}  total={v["stated_total"]["value"]}'
                   f'  plan={v["plan_relation"]["value"]}  probs={len(r["problems"])}')
             continue
         seen.add((prov, trial, turn))
@@ -47,9 +47,9 @@ for f in files:
         bad = [x for x in res if not x[1]]
         ok += len(res) - len(bad); ng += len(bad)
         mark = '○' if not bad else '×'
-        print(f'  {mark} {tag}' + ''.join(f'\n      × {x[0]}: 抽出 {x[2]!r}  正解 {x[3]!r}' for x in bad)
+        print(f'  {mark} {tag}' + ''.join(f'\n      × {x[0]}: extracted {x[2]!r}  answer {x[3]!r}' for x in bad)
               + (f'\n      problems: {r["problems"]}' if r['problems'] else ''))
-print(f'\n照合 {ok + ng} 項目中 一致 {ok} / 不一致 {ng}')
+print(f'\nchecked {ok + ng} items: {ok} match / {ng} mismatch')
 miss = set(GOLD) - seen
 if miss:
-    print('抽出結果に無かった正解:', sorted(miss))
+    print('answers missing from the extraction results:', sorted(miss))

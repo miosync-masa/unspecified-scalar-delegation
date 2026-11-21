@@ -1,8 +1,8 @@
 #!/bin/sh
-# q2_count（「全3問の予告」＋「順に答える指示」のみ）と q2_eval（評価の体裁＋連番）を、
-# 同じコードブック v3.3・同じコーダーの組で抽出する。q2_eval は v3.1 で抽出済みだが、
-# 版をそろえるために抽出し直す（v3.1 の結果は RESULTS_q2_eval.md に歴史的結果として残す）。
-# 両設計とも 2026-11-07 の同じ日に回っている。判定ルールは RUNBOOK「q2_count の事前登録」。
+# Extract q2_count (only the three-question announcement and the instruction to answer in order) and
+# q2_eval (assessment frame plus numbering) with the same codebook v3.3 and the same coder pairs. q2_eval was
+# extracted with v3.1 before; it is re-extracted to match versions (v3.1 results stay in RESULTS_q2_eval.md).
+# Both designs ran on the same day, 2026-11-07. Decision rules: docs/ANALYSIS_PLANS.md, "q2_count".
 set -e
 unset FJF_FLAT_HISTORY
 for D in q2_count q2_eval; do
@@ -13,4 +13,4 @@ for D in q2_count q2_eval; do
     python3 fjf_extract.py --in results_$D.jsonl --cb $CB --coder qwen      --subject anthropic openai --workers 4
   done
 done
-echo "抽出 16 本 完了"
+echo "16 extractions done"

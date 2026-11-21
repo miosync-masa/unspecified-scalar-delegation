@@ -41,11 +41,11 @@ def pairs_for(subj, var):
     return out
 
 if __name__ == '__main__':
-    print(f"{'変数':22s}" + ''.join(f'{s:>14s}' for s in S))
+    print(f"{'variable':22s}" + ''.join(f'{s:>14s}' for s in S))
     for var in ['ALLOC5'] + V:
         row = f'{var:22s}'
         for s in S:
             a, m = ac1(pairs_for(s, var))
             row += f'{"—":>14s}' if a is None else f'{a:9.2f} ({m:2d})'
         print(row)
-    print('\n（ ）内は2体のコーダーが割れたターン数。各被験者 40 ターン')
+    print('\nParentheses: turns on which the two coders split. 40 turns per subject')

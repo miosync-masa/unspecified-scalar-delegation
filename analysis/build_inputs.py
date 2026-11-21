@@ -1,14 +1,14 @@
-"""data/ から、結果文書の生成スクリプトが読む作業レイアウト（build/）を組み立てる。
+"""Assemble from data/ the working layout (build/) that the result generators read.
 
-生成スクリプトは研究中の作業ディレクトリの構成（q3c/、q4c/、qe/、rations_main/ など）を
-前提に書かれている。ここで、その構成を data/ の記録から再現する。どの部分集合が
-どの記録から来たかは、この表（SUBSETS と COPIES）がすべてである。
+The generators were written against the working directories used during the research (q3c/, q4c/, qe/,
+rations_main/ and so on). This script rebuilds that layout from the records in data/. These tables
+(SUBSETS and COPIES) are the complete account of which subset comes from which record.
 
-    python3 analysis/build_inputs.py      # build/ を作り直す
-    sh analysis/make_all.sh               # build/ を作って全生成スクリプトを回し、results/ を更新する
+    python3 analysis/build_inputs.py      # rebuild build/
+    sh analysis/make_all.sh               # build build/, run every generator and update results/
 
-部分集合は (設計名=key[0], 変数群=question, コーダー, コードブック版) で記録を選ぶ。
-成功した行だけを、data/coded/ のファイル名順・行順で書き出す。
+A subset selects records by (design = key[0], variable group = question, coder, codebook version).
+Only successful rows are written, in file-name and line order of data/coded/.
 """
 import json, os, shutil, glob
 from pathlib import Path
@@ -18,7 +18,7 @@ DATA = ROOT / 'data'
 BUILD = ROOT / 'build'
 CODERS = ('anthropic', 'gemini', 'openai', 'qwen')
 
-# 生成スクリプトが読むファイル名 → 記録の選び方（設計名, 変数群, コードブック版）。コーダーは名前から決まる
+# file name read by a generator -> how records are selected (design, variable group, codebook version); the coder follows from the name
 SUBSETS = {}
 for n in CODERS:
     SUBSETS[f'q3c/record_by_{n}.jsonl'] = ('q3', 'q3_record', '2.4', n)
@@ -32,7 +32,7 @@ for n in CODERS:
     SUBSETS[f'qe/cons_by_{n}.jsonl'] = ('q2_eval', 'q2_consistency', '3.1', n)
 SUBSETS['q3c/q2choice_by_qwen.jsonl'] = ('q2', 'q1', '2.1', 'qwen')
 
-# 生成スクリプトが読む場所 → data/ のファイル（glob）。ファイルごとそのまま置く
+# location read by a generator -> files in data/ (glob), copied as whole files
 COPIES = {
     'q4full.jsonl': 'raw/results_q4.jsonl',
     'q2eval.jsonl': 'raw/results_q2_eval.jsonl',
@@ -58,7 +58,7 @@ COPIES = {
     'elevator/results_elevator_norm.jsonl': 'raw/results_elevator_norm.jsonl',
     'q12/': 'coded/{coded_q1_*-*-*_by_*[a-z],coded_q2_q1_*-*-*_by_*[a-z],coded_q2_q2_consistency_*-*-*_by_*[a-z]}.jsonl',
 }
-# 生成スクリプトが import するモジュールと、入力として読む確定記録・定義
+# modules the generators import, and the frozen records and definitions they read as input
 LINKS = ['fjf_extract.py', 'fjf_api.py', 'fjf_scenario.py', 'scenario_rescue.yaml',
          'scenario_rations.yaml', 'codebook_v1.yaml']
 
@@ -91,7 +91,7 @@ def main():
             for r in rs:
                 f.write(json.dumps(r, ensure_ascii=False) + '\n')
         if not rs:
-            raise SystemExit(f'部分集合が空です: {p} {SUBSETS[p]}')
+            raise SystemExit(f'empty subset: {p} {SUBSETS[p]}')
     for dst, pat in COPIES.items():
         pats = [pat]
         if '{' in pat:
@@ -100,7 +100,7 @@ def main():
             pats = [head + a + tail for a in alts.split(',')]
         srcs = sorted(x for q in pats for x in glob.glob(str(DATA / q)))
         if not srcs:
-            raise SystemExit(f'data/ に見つかりません: {pat}')
+            raise SystemExit(f'not found in data/: {pat}')
         if dst.endswith('/'):
             (BUILD / dst).mkdir(parents=True, exist_ok=True)
             for s in srcs:
@@ -114,7 +114,7 @@ def main():
         shutil.copy(f, BUILD / f.name)
     for f in (ROOT / 'analysis').glob('*.py'):
         shutil.copy(f, BUILD / f.name)
-    print(f'build/ を作りました（部分集合 {len(out)} 本、コピー {len(COPIES)} 組）')
+    print(f'built build/ ({len(out)} subsets, {len(COPIES)} copy groups)')
 
 
 if __name__ == '__main__':
